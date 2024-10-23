@@ -71,3 +71,18 @@ class Env2048():
         """
         return self.player_score
     
+
+    def execute_action(self, action: int) -> typing.Tuple[int, float, bool]:
+        """ 
+            execute_action(action)
+
+            Execute action 
+            
+            Inputs:
+                action:     Direction to move (0: U, 1: R, 2: D, 3: L)(int)
+
+            Outputs:
+                state:      New state (int)
+                reward:     Reward of action (float)
+                end:        Game end flag (bool)
+        """
