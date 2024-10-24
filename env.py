@@ -26,7 +26,7 @@ class Env2048():
             self.rng = np.random.default_rng(seed=100)
         else:
             self.rng = np.random.default_rng(seed=None)
-                
+
         # init grid (dimensions are constant per env)
         if init_state is None:
             self.nrows = n_rows
@@ -37,6 +37,8 @@ class Env2048():
         
         self.grid = None
         self.score = 0
+        self.end = False
+        self.win = False
         self.history = None
 
         # reset game board
@@ -86,6 +88,11 @@ class Env2048():
         else:
             self.grid = init_state
 
+        # reset vars
+        self.score = 0
+        self.end = False
+        self.win = False
+
         # reset game history
         self.history = {"state": [self.grid.flatten()], "action": [], "score": [], "reward": [], "end": [], "win": []}
 
@@ -105,36 +112,51 @@ class Env2048():
                 end:        Game end flag (bool)
         """
 
-        # execute move
-        if action >= 0 and action < self.poss_moves:
-            rot_grid = np.rot90(self.grid, action)
-            shift_grid, tot_merged = self._shift_left(rot_grid)
-            new_grid = np.rot90(shift_grid, -action)
-        # invalid move
+        # As long game is not over
+        if not self.end:
+            # execute move
+            if action >= 0 and action < self.poss_moves:
+                rot_grid = np.rot90(self.grid, action)
+                shift_grid, tot_merged = self._shift_left(rot_grid)
+                new_grid = np.rot90(shift_grid, -action)
+            # invalid move
+            else:
+                raise ValueError(f"Invalid move, Action range is 0-{self.poss_moves-1}")
+            
+            # check end of game 
+            end, win = self._check_end(new_grid)
+
+            # update vars
+            self.score += tot_merged
+            self.end = end
+            self.win = win
+
+            # calculate reward 
+            reward = self._calc_reward(self.grid, new_grid, self.score, tot_merged, end, win)
+
+            # add new tile
+            if (not end) and (not np.array_equal(self.grid, new_grid)):
+                new_grid = self._add_tile(new_grid)
+
+            # update vars
+            self.grid = new_grid
+
+            # update history
+            self.history["state"].append(self.grid.flatten())
+            self.history["action"].append(action)
+            self.history["score"].append(self.score)
+            self.history["reward"].append(reward)   
+            self.history["end"].append(end)
+            self.history["win"].append(win)
+
+            # return outputs
+            ret_vals = (self.history["state"][-1], self.history["reward"][-1], self.history["score"][-1], self.history["end"][-1], self.history["win"][-1])
+
+        # game is over
         else:
-            raise ValueError(f"Invalid move, Action range is 0-{self.poss_moves-1}")
-        
-        # check end of game 
-        end, win = self._check_end(new_grid)
+            # no more rewards
+            ret_vals = (self.history["state"][-1], 0, self.history["score"][-1], self.history["end"][-1], self.history["win"][-1])
 
-        # add new tile
-        if (not end) and (not np.array_equal(self.grid, new_grid)):
-            new_grid = self._add_tile(new_grid)
-
-        # update vars
-        self.grid = new_grid
-        self.score += tot_merged
-
-        # update history
-        self.history["state"].append(self.grid.flatten())
-        self.history["action"].append(action)
-        self.history["score"].append(self.score)
-        self.history["reward"].append(tot_merged)   # TODO: need to review
-        self.history["end"].append(end)
-        self.history["win"].append(win)
-
-        # return outputs
-        ret_vals = (self.history["state"][-1], self.history["reward"][-1], self.history["score"][-1], self.history["end"][-1], self.history["win"][-1])
         return ret_vals
         
 
@@ -205,7 +227,7 @@ class Env2048():
 
             Outputs:
                 end:    T: game over, F: there are possible moves
-                win:    T: win, F: loss (check when end is true)
+                win:    T: win, F: loss (valid when end is true)
         """
         
         # reached win tile
@@ -237,6 +259,17 @@ class Env2048():
                     
             
     def _add_tile(self, grid: npt.NDArray[np.int_]) ->  npt.NDArray[np.int_]:
+        """ 
+            _add_tile(grid)
+
+            Add a tile (2 or 4) randomly to grid 
+            
+            Inputs:
+                grid:       Current grid
+
+            Outputs:
+                new_grid:   New grid with added tile
+        """
         # find all empty cells (value 0)
         empty_cells = list(zip(*np.where(grid == 0)))
         
@@ -252,3 +285,57 @@ class Env2048():
         grid[row, col] = new_tile
         
         return grid
+
+
+    # TODO: need to review
+    def _calc_reward(self, old_grid: npt.NDArray[np.int_], new_grid: npt.NDArray[np.int_], score: float, tot_merged: float, end: bool, win: bool) -> float:
+        """ 
+            _calc_reward(grid, score, tot_merged, end, win)
+
+            Reward Function
+            
+            Inputs:
+                old_grid:   grid prior to move
+                new_grid:   grid after move
+                score:      most recent score
+                tot_merged: most recent total of merged tiles
+                end:        flag to mark game end
+                win:        flag to mark a win/loss (valid when end is true)
+
+            Outputs:
+                reward:     reward for move
+        """
+        
+        reward = 0
+
+        # game over rewards
+        # rationale: winning the game is the ultimate goal, it should be rewarded heavily.
+        #            Moreover, it add/subtracts the score because not all wins/losses are equal.
+        # concern: the score might get large and dominate the reward function
+        if end:
+            if win:
+                reward = .25*score + 5000
+            else:
+                reward = .25*score - 5000
+
+        # additional reward is based on total merged tiles
+        # rationale: higher total encourages merging
+        # concern: this might cause the agent to prioritize high scores over winning
+        reward += tot_merged
+
+        # additional reward is based on reaching a new max tile
+        # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
+        # concern: this might encourage short term merging strategy over long term  
+        old_max = np.max(old_grid)
+        new_max = np.max(new_grid)
+        
+        if new_max > old_max:
+            reward += new_max
+
+        # # additional reward is based on number of empty states
+        # # rationale: higher number of empty states encourages merging
+        # # concern: this is potentially captured in score/tot_merged
+        # num_empty = np.sum(new_grid == 0)
+        # reward += num_empty
+
+        return reward
