@@ -2,6 +2,9 @@ import typing
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from prettytable import PrettyTable
+import os
+import time
 
 
 class Env2048:
@@ -24,13 +27,7 @@ class Env2048:
         """
         self.max_tile = max_tile
         self.min_tile = 2
-        self.actions = {
-            0: [-1, 0],  # U
-            1: [1, 0],  # D
-            2: [0, -1],  # L
-            3: [0, 1],
-        }  # R
-        self.rotation = {0: 1, 1: 3, 2: 0, 3: 2}
+        self.num_actions = 4
         if debug:
             self.rng = np.random.default_rng(seed=100)
         else:
@@ -88,7 +85,7 @@ class Env2048:
         self.end = False
         self.win = False
 
-        # reset game history # TODO probably don't need score or win here.
+        # reset game history
         self.history = {
             "state": [self.grid.flatten()],
             "action": [],
@@ -110,7 +107,7 @@ class Env2048:
         Execute move/action
 
         Inputs:
-            action:     Direction to move (0: U, 1: D, 2: L, 3: R)(int)
+            action:     Direction to move (0: L, 1: U, 2: R, 3: D)(int)
 
         Outputs:
             state:      New state (int)
@@ -121,10 +118,10 @@ class Env2048:
         # As long game is not over
         if not self.end:
             # execute move
-            if action >= 0 and action < len(self.actions):
-                rot_grid = np.rot90(self.grid, self.rotation[action])
+            if action >= 0 and action < self.num_actions:
+                rot_grid = np.rot90(self.grid, action)
                 shift_grid, tot_merged = self._shift_left(rot_grid)
-                new_grid = np.rot90(shift_grid, -self.rotation[action])
+                new_grid = np.rot90(shift_grid, -action)
             else:  # invalid move
                 raise ValueError(f"Invalid move, Action range is 0-{self.poss_moves-1}")
 
@@ -148,7 +145,7 @@ class Env2048:
             # update vars
             self.grid = new_grid
 
-            # update history # so 6 lists?
+            # update history
             self.history["state"].append(self.grid.flatten())
             self.history["action"].append(action)
             self.history["score"].append(self.score)
@@ -236,7 +233,6 @@ class Env2048:
 
         return (new_grid, tot_merged)
 
-    # no real reason to pass in the grid right? (in any of these as it is a member)
     def _check_end(self, grid: npt.NDArray[np.int_]) -> typing.Tuple[bool, bool]:
         """
         _check_end(grid)
@@ -335,7 +331,8 @@ class Env2048:
             reward:     reward for move
         """
 
-        reward = 0
+        # May be worth having a negative base reward (each move costs 1)
+        reward = -1
 
         # game over rewards
         # rationale: winning the game is the ultimate goal, it should be rewarded heavily.
@@ -350,6 +347,7 @@ class Env2048:
         # additional reward is based on total merged tiles
         # rationale: higher total encourages merging
         # concern: this might cause the agent to prioritize high scores over winning
+        # maybe we only want to count the number of tiles merged?
         reward += tot_merged
 
         # additional reward is based on reaching a new max tile
@@ -368,3 +366,48 @@ class Env2048:
         # reward += num_empty
 
         return reward
+
+    def print_state(
+        self, flat_state, rows, cols, score, last_action=None, prev_reward=None
+    ):
+        # expects the 'flat_state' to be valid in regard to the row and col provided
+        action = ""
+        if last_action is not None:
+            action = "Previous Action: "
+            if last_action == 0:
+                action += "L, "
+            elif last_action == 1:
+                action += "U, "
+            elif last_action == 2:
+                action += "R, "
+            else:  # 3
+                action += "D, "
+        reward = f"Reward: {prev_reward}, " if prev_reward else ""
+        t = PrettyTable(header=False, padding_width=2)
+        print(f"{action}{reward}Score: {score}")
+        for i in range(rows):
+            row = []
+            for j in range(cols):
+                row.append(flat_state[i * cols + j])
+            t.add_row(row, divider=True)
+        print(t)
+
+    def print_history(self, history):
+        # expects a valid 'history'
+        for row_i in range(len(history["state"])):
+            # uncomment if you want it to clear between each state (also uncomment the sleep)
+            # os.system("cls" if os.name == "nt" else "clear")
+            flat_state = history["state"][row_i]
+            rows = self.nrows
+            cols = self.ncols
+            if row_i == 0:
+                score = 0
+                last_action = None
+                prev_reward = None
+            else:
+                score = history["score"][row_i - 1]
+                last_action = history["action"][row_i - 1]
+                prev_reward = history["reward"][row_i - 1]
+            self.print_state(flat_state, rows, cols, score, last_action, prev_reward)
+            # time.sleep(1)  # sleep 1 second before writing the next state
+            # could instead add a pause if we wanted
