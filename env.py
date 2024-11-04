@@ -6,6 +6,9 @@ from prettytable import PrettyTable
 import os
 import time
 
+# TODO wondering if maybe storing the power of 2 that a tile has instead of the value (eg 2^1=2 so we store 1)
+#       Thinking this could help with the neural net?
+
 
 class Env2048:
     """Env2048 is a class for playing 2048"""
@@ -94,6 +97,7 @@ class Env2048:
             "end": [],
             "win": [],
         }
+        return self.grid
 
     # TODO how do we handle moves that cannot be made? (can only move in a way that would actually move tiles)
     # so a move is invalid if we would get the same 'new_grid' after taking that action
@@ -397,6 +401,8 @@ class Env2048:
         for row_i in range(len(history["state"])):
             # uncomment if you want it to clear between each state (also uncomment the sleep)
             # os.system("cls" if os.name == "nt" else "clear")
+            # time.sleep(1)  # sleep 1 second before writing the next state
+            # could instead add a pause if we wanted
             flat_state = history["state"][row_i]
             rows = self.nrows
             cols = self.ncols
@@ -409,5 +415,3 @@ class Env2048:
                 last_action = history["action"][row_i - 1]
                 prev_reward = history["reward"][row_i - 1]
             self.print_state(flat_state, rows, cols, score, last_action, prev_reward)
-            # time.sleep(1)  # sleep 1 second before writing the next state
-            # could instead add a pause if we wanted
