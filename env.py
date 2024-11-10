@@ -6,15 +6,12 @@ from prettytable import PrettyTable
 import os
 import time
 
-# TODO wondering if maybe storing the power of 2 that a tile has instead of the value (eg 2^1=2 so we store 1)
-#       Thinking this could help with the neural net?
-
 
 class Env2048:
     """Env2048 is a class for playing 2048"""
 
     def __init__(
-        self, n_rows=4, n_cols=4, max_tile=2048, init_state=None, debug=False
+        self, n_rows=4, n_cols=4, max_tile=11, init_state=None, debug=False
     ) -> None:
         """
         Env2048(n_rows=4, n_cols=4, max_tile=11, init_state=np.array([]))
@@ -29,7 +26,7 @@ class Env2048:
             debug:          Init RNG seed.
         """
         self.max_tile = max_tile
-        self.min_tile = 2
+        self.min_tile = 1  # 2^1 = 2
         self.num_actions = 4
         if debug:
             self.rng = np.random.default_rng(seed=100)
@@ -50,6 +47,29 @@ class Env2048:
 
         # reset game board
         self.reset(init_state=init_state)
+
+    def get_action_dim(self) -> int:
+        """
+        get_action_dim()
+
+        Get Number of Actions (i.e. 4, up/down/left/right)
+
+        Outputs:
+            dim:   Number of Possible Actions
+        """
+        return self.num_actions
+
+    def get_state_dim(self) -> int:
+        """
+        get_state_dim()
+
+        Get State Size (grid size, e.g. 16 for regular board)
+
+        Outputs:
+            dim:   Number of Board size
+        """
+        dim = self.nrows * self.ncols
+        return dim
 
     def get_state(self) -> npt.NDArray[np.int_]:
         """
@@ -99,9 +119,6 @@ class Env2048:
         }
         return self.grid
 
-    # TODO how do we handle moves that cannot be made? (can only move in a way that would actually move tiles)
-    # so a move is invalid if we would get the same 'new_grid' after taking that action
-    # might just allow them as a possible action and return a reward of -1 or something?
     def move(
         self, action: int
     ) -> typing.Tuple[npt.NDArray[np.int_], float, float, bool, bool]:
@@ -226,7 +243,7 @@ class Env2048:
                 if (entry_idx < len(non_zero) - 1) and (
                     non_zero[entry_idx] == non_zero[entry_idx + 1]
                 ):
-                    merged.append(non_zero[entry_idx] * 2)
+                    merged.append(non_zero[entry_idx] + 1)
                     tot_merged += merged[-1]
                     skip = True
                 else:
@@ -301,7 +318,7 @@ class Env2048:
         row, col = empty_cells[self.rng.choice(len(empty_cells))]
 
         # add a 2 with 90% prob and 4 with 10% prob
-        new_tile = 2 if self.rng.random() < 0.9 else 4
+        new_tile = self.min_tile if self.rng.random() < 0.9 else (self.min_tile + 1)
         grid[row, col] = new_tile
 
         return grid
@@ -335,23 +352,23 @@ class Env2048:
             reward:     reward for move
         """
 
-        # May be worth having a negative base reward (each move costs 1)
-        reward = -1
+        reward = 0
 
         # game over rewards
-        # rationale: winning the game is the ultimate goal, it should be rewarded heavily.
-        #            Moreover, it add/subtracts the score because not all wins/losses are equal.
-        # concern: the score might get large and dominate the reward function
+        # rationale: winning the game is the ultimate goal,
+        #            it should be rewarded heavier than the greatest merging reward.
+        # concern: the loss penalty might be too large
+        max_merge_reward = (self.get_state_dim() / 2) * (self.max_tile - 1)
         if end:
             if win:
-                reward = 0.25 * score + 5000
+                reward += max_merge_reward + 1
             else:
-                reward = 0.25 * score - 5000
+                reward += -(max_merge_reward + 1)
 
         # additional reward is based on total merged tiles
         # rationale: higher total encourages merging
         # concern: this might cause the agent to prioritize high scores over winning
-        # maybe we only want to count the number of tiles merged?
+        #          maybe we only want to count the number of tiles merged?
         reward += tot_merged
 
         # additional reward is based on reaching a new max tile
@@ -368,6 +385,10 @@ class Env2048:
         # # concern: this is potentially captured in score/tot_merged
         # num_empty = np.sum(new_grid == 0)
         # reward += num_empty
+
+        # additional small negative penalty to discourage non-moves
+        if reward == 0 and np.all(old_grid == new_grid):
+            reward = -0.1
 
         return reward
 

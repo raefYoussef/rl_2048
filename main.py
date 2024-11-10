@@ -3,7 +3,7 @@ import numpy as np
 
 
 def main():
-    env = Env2048(3, 4, 64)
+    env = Env2048(3, 4, 6)
     rng = np.random.default_rng(seed=100)
     end = False
     while not end:
