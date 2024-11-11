@@ -39,14 +39,36 @@ class Env2048:
         else:
             self.nrows = init_state.shape[0]
             self.ncols = init_state.shape[1]
-        self.grid = np.zeros((n_rows, n_cols), dtype=int)
-        self.score = 0
-        self.end = False
-        self.win = False
-        self.history = None
 
         # reset game board
         self.reset(init_state=init_state)
+
+    def reset(self, init_state=None) -> None:
+        self.grid = np.zeros((self.nrows, self.ncols), dtype=np.int_)
+        # init grid randomly
+        if init_state is None:
+            empty_cells = list(zip(*np.where(self.grid == 0)))
+            starting_ind = self.rng.choice(len(empty_cells), 2, replace=False)
+            self.grid[empty_cells[starting_ind[0]]] = self.min_tile
+            self.grid[empty_cells[starting_ind[1]]] = self.min_tile
+        else:  # init state is provided
+            self.grid = init_state
+
+        # reset vars
+        self.score = 0
+        self.end = False
+        self.win = False
+
+        # reset game history
+        self.history = {
+            "state": [self.grid.flatten()],
+            "action": [],
+            "score": [],
+            "reward": [],
+            "end": [],
+            "win": [],
+        }
+        return self.grid
 
     def get_action_dim(self) -> int:
         """
@@ -92,32 +114,6 @@ class Env2048:
             Score:   Current score
         """
         return self.score
-
-    def reset(self, init_state=None) -> None:
-        # init grid randomly
-        if init_state is None:
-            empty_cells = list(zip(*np.where(self.grid == 0)))
-            starting_ind = self.rng.choice(len(empty_cells), 2, replace=False)
-            self.grid[empty_cells[starting_ind[0]]] = self.min_tile
-            self.grid[empty_cells[starting_ind[1]]] = self.min_tile
-        else:  # init state is provided
-            self.grid = init_state
-
-        # reset vars
-        self.score = 0
-        self.end = False
-        self.win = False
-
-        # reset game history
-        self.history = {
-            "state": [self.grid.flatten()],
-            "action": [],
-            "score": [],
-            "reward": [],
-            "end": [],
-            "win": [],
-        }
-        return self.grid
 
     def move(
         self, action: int
@@ -351,7 +347,6 @@ class Env2048:
         Outputs:
             reward:     reward for move
         """
-
         reward = 0
 
         # game over rewards
