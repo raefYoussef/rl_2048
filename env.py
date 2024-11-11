@@ -1,4 +1,5 @@
-import typing
+from typing import Optional
+from typing import Tuple
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -93,7 +94,9 @@ class Env2048:
         """
         return self.score
 
-    def reset(self, init_state=None) -> None:
+    def reset(
+        self, init_state: Optional[npt.NDArray[np.int]] = None
+    ) -> npt.NDArray[np.int]:
         # init grid randomly
         if init_state is None:
             empty_cells = list(zip(*np.where(self.grid == 0)))
@@ -119,11 +122,11 @@ class Env2048:
         }
         return self.grid
 
-    def move(
+    def step(
         self, action: int
-    ) -> typing.Tuple[npt.NDArray[np.int_], float, float, bool, bool]:
+    ) -> Tuple[npt.NDArray[np.int_], float, float, bool, bool]:
         """
-        move(action)
+        step(action)
 
         Execute move/action
 
@@ -133,7 +136,9 @@ class Env2048:
         Outputs:
             state:      New state (int)
             reward:     Reward of action (float)
+            score:      Current score (float)
             end:        Game end flag (bool)
+            win:        Game ended in a win (bool)
         """
 
         # As long game is not over
@@ -210,7 +215,7 @@ class Env2048:
 
     def _shift_left(
         self, grid: npt.NDArray[np.int_]
-    ) -> typing.Tuple[npt.NDArray[np.int_], int]:
+    ) -> Tuple[npt.NDArray[np.int_], int]:
         """
         _shift_left(grid)
 
@@ -254,7 +259,7 @@ class Env2048:
 
         return (new_grid, tot_merged)
 
-    def _check_end(self, grid: npt.NDArray[np.int_]) -> typing.Tuple[bool, bool]:
+    def _check_end(self, grid: npt.NDArray[np.int_]) -> Tuple[bool, bool]:
         """
         _check_end(grid)
 
