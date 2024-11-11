@@ -117,8 +117,11 @@ class Env2048:
         return self.score
 
     def reset(
-        self, init_state: Optional[npt.NDArray[np.int]] = None
-    ) -> npt.NDArray[np.int]:
+        self, init_state: Optional[npt.NDArray[np.int_]] = None
+    ) -> npt.NDArray[np.int_]:
+
+        self.grid = np.zeros((self.nrows, self.ncols), dtype=np.int_)
+
         # init grid randomly
         if init_state is None:
             empty_cells = list(zip(*np.where(self.grid == 0)))
@@ -142,6 +145,7 @@ class Env2048:
             "end": [],
             "win": [],
         }
+
         return self.grid
 
     def step(
