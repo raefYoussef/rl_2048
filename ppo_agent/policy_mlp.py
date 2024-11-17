@@ -13,7 +13,7 @@ class PolicyMLP(nn.Module):
     This MLP network can be used to represent the actor/critic networks
     """
 
-    def __init__(self, in_dim: int, out_dim: int) -> None:
+    def __init__(self, in_dim: int, out_dim: int, hidden_dim: int = 64) -> None:
         """
         Initialize the network and set up the layers.
 
@@ -26,9 +26,9 @@ class PolicyMLP(nn.Module):
         """
         super(PolicyMLP, self).__init__()
 
-        self.layer1 = nn.Linear(in_dim, 64)
-        self.layer2 = nn.Linear(64, 64)
-        self.layer3 = nn.Linear(64, out_dim)
+        self.layer1 = nn.Linear(in_dim, hidden_dim)
+        self.layer2 = nn.Linear(hidden_dim, hidden_dim)
+        self.layer3 = nn.Linear(hidden_dim, out_dim)
 
     def forward(self, state: Union[npt.NDArray[np.float_], Tensor]) -> Tensor:
         """

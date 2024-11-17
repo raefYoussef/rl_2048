@@ -82,7 +82,7 @@ class Env2048:
             "end": [],
             "win": [],
         }
-        return self.grid
+        return self.grid.flatten()
 
     def get_action_dim(self) -> int:
         """
@@ -128,6 +128,17 @@ class Env2048:
             Score:   Current score
         """
         return self.score
+
+    def get_max_tile(self) -> int:
+        """
+        get_max_tile()
+
+        Get Maximum Tile
+
+        Outputs:
+            tile:   Max tile
+        """
+        return np.max(self.grid)
 
     def step(
         self, action: int
@@ -363,7 +374,7 @@ class Env2048:
         Outputs:
             reward:     reward for move
         """
-        reward = 0
+        reward = -1
 
         # game over rewards
         # rationale: winning the game is the ultimate goal,
@@ -372,9 +383,11 @@ class Env2048:
         max_merge_reward = (self.get_state_dim() / 2) * (self.max_tile - 1)
         if end:
             if win:
-                reward += max_merge_reward + 1
+                # reward += max_merge_reward + 1
+                reward += 1000
             else:
-                reward += -(max_merge_reward + 1)
+                # reward += -(max_merge_reward + 1)
+                reward += -1000
 
         # additional reward is based on total merged tiles
         # rationale: higher total encourages merging
@@ -382,14 +395,14 @@ class Env2048:
         #          maybe we only want to count the number of tiles merged?
         reward += tot_merged
 
-        # additional reward is based on reaching a new max tile
-        # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
-        # concern: this might encourage short term merging strategy over long term
-        old_max = np.max(old_grid)
-        new_max = np.max(new_grid)
+        # # additional reward is based on reaching a new max tile
+        # # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
+        # # concern: this might encourage short term merging strategy over long term
+        # old_max = np.max(old_grid)
+        # new_max = np.max(new_grid)
 
-        if new_max > old_max:
-            reward += new_max
+        # if new_max > old_max:
+        #     reward += new_max
 
         # # additional reward is based on number of empty states
         # # rationale: higher number of empty states encourages merging
@@ -397,9 +410,9 @@ class Env2048:
         # num_empty = np.sum(new_grid == 0)
         # reward += num_empty
 
-        # additional small negative penalty to discourage non-moves
-        if reward == 0 and np.all(old_grid == new_grid):
-            reward = -0.1
+        # # additional small negative penalty to discourage non-moves
+        # if reward == 0 and np.all(old_grid == new_grid):
+        #     reward += -100
 
         return reward
 

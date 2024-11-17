@@ -1,8 +1,10 @@
-from pathlib import Path
 import typing
 import numpy.typing as npt
-import numpy as np
+from pathlib import Path
 import time
+
+import pandas as pd
+import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -24,7 +26,6 @@ class AgentPPO:
         gamma: float = 0.95,
         clip: float = 0.2,
         num_updates: int = 5,
-        max_eps_moves: int = 1600,
         max_batch_moves: int = 2048,
         actor_path: typing.Union[Path, str] = "./model/ppo_actor.pth",
         critic_path: typing.Union[Path, str] = "./model/ppo_critic.pth",
@@ -35,19 +36,18 @@ class AgentPPO:
 
         Inputs:
             env:                Environment class (e.g. Env2048)
-            policy:             Policy class to use for actor/critic networks (e.g. PolicyMLP)
+            policy:             Neural network class to use for actor/critic networks (e.g. PolicyMLP)
             seed:               RNG seed (default None, doesn't init RNG)
             lr:                 Actor/Critic Learning rate (default 0.005)
             gamma:              Discount factor to be applied when calculating Rewards-To-Go (default 0.95)
             clip:               PPO clipping factor (default .2)
             num_updates:        Number of updates per iteration (default: 5)
-            max_eps_moves:      Maximum number of moves per episode (default 1600)
             max_batch_moves:    Maximum number of moves per batch (default 2400)
             actor_path:         Path to actor weights (default: ./model/ppo_actor.pth)
             critic_path:        Path to critic weights (default: ./model/ppo_critic.pth)
             save_freq:          Iterations interval to save model weights (default: 10)
 
-        Returns:
+        Outputs:
             None
         """
 
@@ -59,13 +59,31 @@ class AgentPPO:
         self.clip = clip
         self.num_updates = num_updates
         self.max_batch_moves = max_batch_moves
-        self.max_eps_moves = max_eps_moves
 
         # Model Configs
+        self.policy = policy
         self.actor_path = actor_path
         self.critic_path = critic_path
         self.save_freq = save_freq
 
+        # Extract environment information
+        self.env = env
+        self.state_dim = env.get_state_dim()
+        self.action_dim = env.get_action_dim()
+
+        # Reset training params
+        self.reset()
+
+    def reset(self) -> None:
+        """
+        Reset the PPO model
+
+        Inputs:
+            None
+
+        Outputs:
+            None
+        """
         # Init RNG
         if self.seed != None:
             # Check if our seed is valid first
@@ -74,32 +92,168 @@ class AgentPPO:
             # Set the seed
             torch.manual_seed(self.seed)
 
-        # Extract environment information
-        self.env = env
-        self.state_dim = env.get_state_dim()
-        self.action_dim = env.get_action_dim()
-
         # Initialize actor and critic networks
-        self.actor = policy(self.state_dim, self.action_dim)
-        self.critic = policy(self.state_dim, 1)
+        # TODO: save/load actor/critic networks
+        self.actor = self.policy(
+            in_dim=self.state_dim, out_dim=self.action_dim, hidden_dim=64
+        )
+        self.critic = self.policy(in_dim=self.state_dim, out_dim=1, hidden_dim=64)
 
         # Initialize optimizers for actor and critic
-        self.actor_optim = Adam(self.actor.Inputs(), lr=self.lr)
-        self.critic_optim = Adam(self.critic.Inputs(), lr=self.lr)
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
+        self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
 
         # This logger will help us with printing out summaries of each iteration
         self.logger = {
             "delta_t": time.time_ns(),
-            "move_cnt": 0,  # moves so far
-            "iter_cnt": 0,  # iterations so far
+            "eps_cnt": 0,  # number of episodes so far
+            "iter_cnt": 0,  # number of learning iterations so far
             "batch_lens": [],  # episodic lengths in batch
             "batch_rewards": [],  # episodic returns in batch
             "actor_losses": [],  # losses of actor network in current iteration
+            "critic_losses": [],  # losses of critic network in current iteration
         }
 
-    def get_action(
-        self, state: typing.Union[npt.NDArray[np.float_], Tensor]
-    ) -> typing.Tuple[np.ndarray, np.ndarray]:
+        # Episodic stats
+        self.eps_stats = {
+            "eps_len": [],  # length of each episode
+            "eps_win": [],  # win status of each episode
+            "eps_score": [],  # final score of each episode
+            "eps_rewards": [],  # cumulative reward of each episode
+            "eps_max_tile": [],  # max tile of each episode
+        }
+
+    def select_action(self, state: typing.Union[npt.NDArray[np.float_], Tensor]) -> int:
+        """
+        Select an action for a given state
+
+        Inputs:
+            state:      Environment state
+
+        Outputs:
+            action:     The action to take
+        """
+
+        # Query the actor network for the policy (prob of selecting each action)
+        logits = self.actor(state).detach()
+        policy = nn.functional.softmax(logits, dim=-1).tolist()
+        action = policy.index(max(policy))
+        return action
+
+    def learn(
+        self, num_eps: int = 1000, reset: bool = False
+    ) -> typing.Dict[str, typing.List[float]]:
+        """
+        Train the actor and critic networks. Main PPO algorithm.
+
+        Inputs:
+            num_eps:    The total number of episodes to train form
+
+        Outputs:
+            None
+        """
+
+        # Reset training if needed
+        if reset:
+            self.reset()
+
+        # Init current training counters
+        eps_cnt = 0  # Episode counter
+        iter_cnt = 0  # Iterations counter
+
+        while eps_cnt < num_eps:  # ALG STEP 2
+            # Collecting a batch of simulations
+            batch_states, batch_actions, batch_log_probs, batch_rtgs, batch_lens = (
+                self._collect_batch()
+            )  # ALG STEP 3
+
+            # Update logger
+            eps_cnt += len(batch_lens)
+            iter_cnt += 1
+            self.logger["iter_cnt"] = iter_cnt
+            self.logger["eps_cnt"] = eps_cnt
+
+            # Calculate advantage at k-th iteration
+            V, _ = self._compute_value(batch_states, batch_actions)
+            A_k = batch_rtgs - V.detach()  # ALG STEP 5
+
+            # # One of the only tricks I use that isn't in the pseudocode. Normalizing advantages
+            # # isn't theoretically necessary, but in practice it decreases the variance of
+            # # our advantages and makes convergence much more stable and faster. I added this because
+            # # solving some environments was too unstable without it.
+            # A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
+
+            # This is the loop where we update our network for some n epochs
+            for _ in range(self.num_updates):  # ALG STEP 6 & 7
+                # Pick randomly from batch to ensure fast training
+                # Give greater weights to more recent moves
+                num_moves = batch_actions.shape[0]
+                weights = torch.arange(1, num_moves + 1, dtype=torch.float)
+                indices = torch.multinomial(
+                    weights / weights.sum(), self.max_batch_moves, replacement=False
+                )
+
+                # Calculate V_phi and pi_theta(a_t | s_t)
+                V, curr_log_probs = self._compute_value(
+                    batch_states[indices], batch_actions[indices]
+                )
+
+                # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
+                # NOTE: we just subtract the logs, which is the same as
+                # dividing the values and then canceling the log with e^log.
+                # For why we use log probabilities instead of actual probabilities,
+                # here's a great explanation:
+                # https://cs.stackexchange.com/questions/70518/why-do-we-use-the-log-in-gradient-based-reinforcement-algorithms
+                # TL;DR makes gradient ascent easier behind the scenes.
+                ratios = torch.exp(curr_log_probs - batch_log_probs[indices])
+
+                # Calculate surrogate losses.
+                surr1 = ratios * A_k[indices]
+                surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k[indices]
+
+                # Calculate actor and critic losses.
+                # NOTE: we take the negative min of the surrogate losses because we're trying to maximize
+                # the performance function, but Adam minimizes the loss. So minimizing the negative
+                # performance function maximizes it.
+                actor_loss = (-torch.min(surr1, surr2)).mean()
+                critic_loss = nn.MSELoss()(V, batch_rtgs[indices])
+
+                # Calculate gradients and perform backward propagation for actor network
+                self.actor_optim.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                self.actor_optim.step()
+
+                # Calculate gradients and perform backward propagation for critic network
+                self.critic_optim.zero_grad()
+                critic_loss.backward()
+                self.critic_optim.step()
+
+                # Log losses
+                self.logger["actor_losses"].append(actor_loss.detach())
+                self.logger["critic_losses"].append(critic_loss.detach())
+
+            # Print a summary of our training so far
+            self._log_summary()
+
+            # TODO: add model saving
+            # # Save our model if it's time
+            # if iter_cnt % self.save_freq == 0:
+            #     torch.save(self.actor.state_dict(), "./ppo_actor.pth")
+            #     torch.save(self.critic.state_dict(), "./ppo_critic.pth")
+
+    def log_statistics(self, filename):
+        """
+        log_statistics(filename)
+
+        Logs training history to a csv file
+
+        Inputs:
+            filename:   CSV file path
+        """
+        df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in self.eps_stats.items()]))
+        df.to_csv(filename, float_format="%.2f")
+
+    def _compute_action(self, state: Tensor) -> typing.Tuple[Tensor, Tensor]:
         """
         Queries an action from the actor network
 
@@ -112,7 +266,8 @@ class AgentPPO:
         """
 
         # Query the actor network for the policy (prob of selecting each action)
-        policy = self.actor(state)
+        logits = self.actor(state)
+        policy = nn.functional.softmax(logits, dim=-1)
 
         # Sample an action from the distribution
         dist = Categorical(policy)
@@ -122,9 +277,9 @@ class AgentPPO:
         log_prob = dist.log_prob(action)
 
         # Return the sampled action and the log probability of that action in our distribution
-        return (action.detach().numpy(), log_prob.detach().numpy())
+        return (action.detach(), log_prob.detach())
 
-    def get_value(
+    def _compute_value(
         self, states: Tensor, actions: Tensor
     ) -> typing.Tuple[Tensor, Tensor]:
         """
@@ -144,7 +299,9 @@ class AgentPPO:
         V = self.critic(states).squeeze()
 
         # Calculate the log probabilities of batch actions using most recent actor network.
-        policy = self.actor(states)
+        logits = self.actor(states)
+        policy = nn.functional.softmax(logits, dim=-1)
+
         dist = Categorical(policy)
         log_probs = dist.log_prob(actions)
 
@@ -152,7 +309,7 @@ class AgentPPO:
         # and log probabilities log_probs of each action in the batch
         return (V, log_probs)
 
-    def compute_rtgs(self, batch_rewards: Tensor) -> Tensor:
+    def _compute_rtgs(self, batch_rewards: Tensor) -> Tensor:
         """
         Compute the Reward-To-Go of each move in a batch given the rewards.
 
@@ -173,8 +330,7 @@ class AgentPPO:
 
             discounted_reward = 0  # The discounted reward so far
 
-            # Iterate through all rewards in the episode. We go backwards for smoother calculation of each
-            # discounted return (think about why it would be harder starting from the beginning)
+            # Iterate through all rewards in the episode
             for reward in reversed(eps_rewards):
                 discounted_reward = reward + discounted_reward * self.gamma
                 batch_rtgs.insert(0, discounted_reward)
@@ -184,13 +340,11 @@ class AgentPPO:
 
         return batch_rtgs
 
-    def collect_batch(
+    def _collect_batch(
         self,
     ) -> typing.Tuple[Tensor, Tensor, Tensor, Tensor, typing.List]:
         """
         Collect the batch of data from simulation.
-        Since this is an on-policy algorithm, we'll need to collect a fresh
-        batch of data each time we iterate the actor/critic networks.
 
         Inputs:
             None
@@ -220,129 +374,48 @@ class AgentPPO:
             state = self.env.reset()
             end = False
 
-            # Run an episode for a maximum of max_eps_moves moves
-            for ep_move_cnt in range(self.max_eps_moves):
-                # TODO: add option for rendering env
+            ep_move_cnt = 0
 
+            # Run an episode
+            while not end:
                 batch_move_cnt += 1  # Increment moves ran this batch so far
+                ep_move_cnt += 1
 
                 # Track states in this batch
                 batch_states.append(state)
 
                 # Calculate action and make a step in the env.
-                action, log_prob = self.get_action(state)
+                action, log_prob = self._compute_action(state)
                 state, reward, score, end, win = self.env.step(action)
+
+                # TODO: add option for rendering env
 
                 # Track recent reward, action, and action log probability
                 eps_rewards.append(reward)
                 batch_actions.append(action)
                 batch_log_probs.append(log_prob)
 
-                # If the environment tells us the episode is terminated, break
-                if end:
-                    break
-
-            # Track episodic lengths and rewards
+            # Track episode stats
             batch_lens.append(ep_move_cnt + 1)
             batch_rewards.append(eps_rewards)
 
+            self.eps_stats["eps_len"].append(ep_move_cnt + 1)
+            self.eps_stats["eps_win"].append(win)
+            self.eps_stats["eps_score"].append(score)
+            self.eps_stats["eps_rewards"].append(np.sum(eps_rewards))
+            self.eps_stats["eps_max_tile"].append(self.env.get_max_tile())
+
         # Reshape data as tensors in the shape specified in function description, before returning
-        batch_states = torch.tensor(batch_states, dtype=torch.float)
+        batch_states = torch.tensor(np.array(batch_states), dtype=torch.float)
         batch_actions = torch.tensor(batch_actions, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
-        batch_rtgs = self.compute_rtgs(batch_rewards)  # ALG STEP 4
+        batch_rtgs = self._compute_rtgs(batch_rewards)  # ALG STEP 4
 
         # Log the episodic returns and episodic lengths in this batch.
         self.logger["batch_rewards"] = batch_rewards
         self.logger["batch_lens"] = batch_lens
 
         return batch_states, batch_actions, batch_log_probs, batch_rtgs, batch_lens
-
-    def learn(self, num_moves: int) -> None:
-        """
-        Train the actor and critic networks. Main PPO algorithm.
-
-        Inputs:
-            num_moves:    The total number of episodes to train form
-
-        Outputs:
-            None
-        """
-
-        move_cnt = 0  # Episode counter
-        iter_cnt = 0  # Iterations counter
-
-        while move_cnt < num_moves:  # ALG STEP 2
-            # Collecting a batch of simulations
-            batch_states, batch_actions, batch_log_probs, batch_rtgs, batch_lens = (
-                self.collect_batch()
-            )  # ALG STEP 3
-
-            # Calculate how many moves we collected this batch
-            move_cnt += np.sum(batch_lens)
-
-            # Increment the number of iterations
-            iter_cnt += 1
-
-            # Logging moves so far and iterations so far
-            self.logger["move_cnt"] = move_cnt
-            self.logger["iter_cnt"] = iter_cnt
-
-            # Calculate advantage at k-th iteration
-            V, _ = self.get_value(batch_states, batch_actions)
-            A_k = batch_rtgs - V.detach()  # ALG STEP 5
-
-            # One of the only tricks I use that isn't in the pseudocode. Normalizing advantages
-            # isn't theoretically necessary, but in practice it decreases the variance of
-            # our advantages and makes convergence much more stable and faster. I added this because
-            # solving some environments was too unstable without it.
-            A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
-
-            # This is the loop where we update our network for some n epochs
-            for _ in range(self.num_updates):  # ALG STEP 6 & 7
-                # Calculate V_phi and pi_theta(a_t | s_t)
-                V, curr_log_probs = self.get_value(batch_states, batch_actions)
-
-                # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
-                # NOTE: we just subtract the logs, which is the same as
-                # dividing the values and then canceling the log with e^log.
-                # For why we use log probabilities instead of actual probabilities,
-                # here's a great explanation:
-                # https://cs.stackexchange.com/questions/70518/why-do-we-use-the-log-in-gradient-based-reinforcement-algorithms
-                # TL;DR makes gradient ascent easier behind the scenes.
-                ratios = torch.exp(curr_log_probs - batch_log_probs)
-
-                # Calculate surrogate losses.
-                surr1 = ratios * A_k
-                surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
-
-                # Calculate actor and critic losses.
-                # NOTE: we take the negative min of the surrogate losses because we're trying to maximize
-                # the performance function, but Adam minimizes the loss. So minimizing the negative
-                # performance function maximizes it.
-                actor_loss = (-torch.min(surr1, surr2)).mean()
-                critic_loss = nn.MSELoss()(V, batch_rtgs)
-
-                # Calculate gradients and perform backward propagation for actor network
-                self.actor_optim.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                self.actor_optim.step()
-
-                # Calculate gradients and perform backward propagation for critic network
-                self.critic_optim.zero_grad()
-                critic_loss.backward()
-                self.critic_optim.step()
-
-                # Log actor loss
-                self.logger["actor_losses"].append(actor_loss.detach())
-
-            # Print a summary of our training so far
-            self._log_summary()
-
-            # Save our model if it's time
-            if iter_cnt % self.save_freq == 0:
-                torch.save(self.actor.state_dict(), "./ppo_actor.pth")
-                torch.save(self.critic.state_dict(), "./ppo_critic.pth")
 
     def _log_summary(self):
         """
@@ -362,7 +435,7 @@ class AgentPPO:
         delta_t = (self.logger["delta_t"] - delta_t) / 1e9
         delta_t = str(round(delta_t, 2))
 
-        move_cnt = self.logger["move_cnt"]
+        eps_cnt = self.logger["eps_cnt"]
         iter_cnt = self.logger["iter_cnt"]
         avg_ep_lens = np.mean(self.logger["batch_lens"])
         avg_eps_rewards = np.mean(
@@ -371,11 +444,15 @@ class AgentPPO:
         avg_actor_loss = np.mean(
             [losses.float().mean() for losses in self.logger["actor_losses"]]
         )
+        avg_critic_loss = np.mean(
+            [losses.float().mean() for losses in self.logger["critic_losses"]]
+        )
 
         # Round decimal places for more aesthetic logging messages
         avg_ep_lens = str(round(avg_ep_lens, 2))
         avg_eps_rewards = str(round(avg_eps_rewards, 2))
         avg_actor_loss = str(round(avg_actor_loss, 5))
+        avg_critic_loss = str(round(avg_critic_loss, 5))
 
         # Print logging statements
         print(flush=True)
@@ -385,8 +462,9 @@ class AgentPPO:
         )
         print(f"Average Episodic Length: {avg_ep_lens}", flush=True)
         print(f"Average Episodic Return: {avg_eps_rewards}", flush=True)
-        print(f"Average Loss: {avg_actor_loss}", flush=True)
-        print(f"Timesteps So Far: {move_cnt}", flush=True)
+        print(f"Average Actor Loss: {avg_actor_loss}", flush=True)
+        print(f"Average Critic Loss: {avg_critic_loss}", flush=True)
+        print(f"Episodes So Far: {eps_cnt}", flush=True)
         print(f"Iteration took: {delta_t} secs", flush=True)
         print(f"------------------------------------------------------", flush=True)
         print(flush=True)
@@ -395,3 +473,4 @@ class AgentPPO:
         self.logger["batch_lens"] = []
         self.logger["batch_rewards"] = []
         self.logger["actor_losses"] = []
+        self.logger["critic_losses"] = []

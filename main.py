@@ -1,16 +1,16 @@
 from env import Env2048
+from ppo_agent.agent_ppo import AgentPPO
+from ppo_agent.policy_mlp import PolicyMLP
 import numpy as np
 
 
 def main():
-    env = Env2048(3, 4, 6)
-    rng = np.random.default_rng(seed=100)
-    end = False
-    while not end:
-        action = rng.integers(0, 4)  # doesn't include the upper bound
-        state, reward, score, end, win = env.step(action)
-    env.log_history("history.csv")
-    env.print_history(env.history)
+    env = Env2048(4, 4, 7)
+    agent = AgentPPO(
+        env=env, policy=PolicyMLP, seed=1000, gamma=0.99, num_updates=5, lr=1e-5
+    )
+    agent.learn(num_eps=10000)
+    agent.log_statistics("train_log.csv")
 
 
 if __name__ == "__main__":
