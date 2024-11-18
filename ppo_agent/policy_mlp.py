@@ -30,7 +30,7 @@ class PolicyMLP(nn.Module):
         self.layer2 = nn.Linear(hidden_dim, hidden_dim)
         self.layer3 = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, state: Union[npt.NDArray[np.float_], Tensor]) -> Tensor:
+    def forward(self, state: Union[npt.NDArray[np.float64], Tensor]) -> Tensor:
         """
         Runs a forward pass of the neural network
 

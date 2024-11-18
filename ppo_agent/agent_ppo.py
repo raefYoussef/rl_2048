@@ -125,7 +125,7 @@ class AgentPPO:
             "eps_max_tile": [],  # max tile of each episode
         }
 
-    def select_action(self, state: typing.Union[npt.NDArray[np.float_], Tensor]) -> int:
+    def select_action(self, state: typing.Union[npt.NDArray[np.float64], Tensor]) -> int:
         """
         Select an action for a given state
 
