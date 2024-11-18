@@ -110,6 +110,8 @@ class AgentPPO:
             "iter_cnt": 0,  # number of learning iterations so far
             "batch_lens": [],  # episodic lengths in batch
             "batch_rewards": [],  # episodic returns in batch
+            "batch_wins": [],  # batch wins
+            "batch_scores": [],  # batch scores
             "actor_losses": [],  # losses of actor network in current iteration
             "critic_losses": [],  # losses of critic network in current iteration
         }
@@ -181,7 +183,7 @@ class AgentPPO:
             # # isn't theoretically necessary, but in practice it decreases the variance of
             # # our advantages and makes convergence much more stable and faster. I added this because
             # # solving some environments was too unstable without it.
-            # A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
+            A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
             # This is the loop where we update our network for some n epochs
             for _ in range(self.num_updates):  # ALG STEP 6 & 7
@@ -267,11 +269,11 @@ class AgentPPO:
 
         # Query the actor network for the policy (prob of selecting each action)
         logits = self.actor(state)
-        policy = nn.functional.softmax(logits, dim=-1)
 
         # Sample an action from the distribution
-        dist = Categorical(policy)
+        dist = Categorical(logits=logits)
         action = dist.sample()
+        # action = torch.argmax(logits, dim=-1)
 
         # Calculate the log probability for that action
         log_prob = dist.log_prob(action)
@@ -329,11 +331,13 @@ class AgentPPO:
         for eps_rewards in reversed(batch_rewards):
 
             discounted_reward = 0  # The discounted reward so far
+            eps_rtg = []
 
             # Iterate through all rewards in the episode
             for reward in reversed(eps_rewards):
                 discounted_reward = reward + discounted_reward * self.gamma
                 batch_rtgs.insert(0, discounted_reward)
+                eps_rtg.insert(0, discounted_reward)
 
         # Convert the rewards-to-go into a tensor
         batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
@@ -364,6 +368,8 @@ class AgentPPO:
         batch_rewards = []
         batch_rtgs = []
         batch_lens = []
+        batch_wins = []
+        batch_scores = []
 
         # Keep simulating until we've run more than or equal to specified moves per batch
         batch_move_cnt = 0
@@ -398,6 +404,8 @@ class AgentPPO:
             # Track episode stats
             batch_lens.append(ep_move_cnt + 1)
             batch_rewards.append(eps_rewards)
+            batch_wins.append(win)
+            batch_scores.append(score)
 
             self.eps_stats["eps_len"].append(ep_move_cnt + 1)
             self.eps_stats["eps_win"].append(win)
@@ -414,6 +422,8 @@ class AgentPPO:
         # Log the episodic returns and episodic lengths in this batch.
         self.logger["batch_rewards"] = batch_rewards
         self.logger["batch_lens"] = batch_lens
+        self.logger["batch_wins"].append(batch_wins)
+        self.logger["batch_scores"].append(batch_scores)
 
         return batch_states, batch_actions, batch_log_probs, batch_rtgs, batch_lens
 
@@ -441,6 +451,10 @@ class AgentPPO:
         avg_eps_rewards = np.mean(
             [np.sum(eps_rewards) for eps_rewards in self.logger["batch_rewards"]]
         )
+
+        avg_wins = np.mean(self.logger["batch_wins"])
+        avg_score = np.mean(self.logger["batch_scores"])
+
         avg_actor_loss = np.mean(
             [losses.float().mean() for losses in self.logger["actor_losses"]]
         )
@@ -462,6 +476,8 @@ class AgentPPO:
         )
         print(f"Average Episodic Length: {avg_ep_lens}", flush=True)
         print(f"Average Episodic Return: {avg_eps_rewards}", flush=True)
+        print(f"Average Win: {avg_wins : .2f}", flush=True)
+        print(f"Average Score: {avg_score : .2f}", flush=True)
         print(f"Average Actor Loss: {avg_actor_loss}", flush=True)
         print(f"Average Critic Loss: {avg_critic_loss}", flush=True)
         print(f"Episodes So Far: {eps_cnt}", flush=True)
@@ -472,5 +488,7 @@ class AgentPPO:
         # Reset batch-specific logging data
         self.logger["batch_lens"] = []
         self.logger["batch_rewards"] = []
+        self.logger["batch_wins"] = []
+        self.logger["batch_scores"] = []
         self.logger["actor_losses"] = []
         self.logger["critic_losses"] = []

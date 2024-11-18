@@ -374,7 +374,7 @@ class Env2048:
         Outputs:
             reward:     reward for move
         """
-        reward = -1
+        reward = 0
 
         # game over rewards
         # rationale: winning the game is the ultimate goal,
@@ -384,16 +384,16 @@ class Env2048:
         if end:
             if win:
                 # reward += max_merge_reward + 1
-                reward += 1000
+                reward += 1
             else:
                 # reward += -(max_merge_reward + 1)
-                reward += -1000
+                reward += -1
 
-        # additional reward is based on total merged tiles
-        # rationale: higher total encourages merging
-        # concern: this might cause the agent to prioritize high scores over winning
-        #          maybe we only want to count the number of tiles merged?
-        reward += tot_merged
+        # # additional reward is based on total merged tiles
+        # # rationale: higher total encourages merging
+        # # concern: this might cause the agent to prioritize high scores over winning
+        # #          maybe we only want to count the number of tiles merged?
+        # reward += tot_merged
 
         # # additional reward is based on reaching a new max tile
         # # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
@@ -410,9 +410,9 @@ class Env2048:
         # num_empty = np.sum(new_grid == 0)
         # reward += num_empty
 
-        # # additional small negative penalty to discourage non-moves
-        # if reward == 0 and np.all(old_grid == new_grid):
-        #     reward += -100
+        # additional small negative penalty to discourage non-moves
+        if reward == 0 and np.all(old_grid == new_grid):
+            reward += -0.01
 
         return reward
 

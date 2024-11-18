@@ -5,11 +5,17 @@ import numpy as np
 
 
 def main():
-    env = Env2048(4, 4, 7)
+    env = Env2048(4, 4, 7, debug=True)
     agent = AgentPPO(
-        env=env, policy=PolicyMLP, seed=1000, gamma=0.99, num_updates=5, lr=1e-5
+        env=env,
+        policy=PolicyMLP,
+        seed=1000,
+        gamma=0.99,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4096,
     )
-    agent.learn(num_eps=10000)
+    agent.learn(num_eps=1500)
     agent.log_statistics("train_log.csv")
 
 
