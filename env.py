@@ -374,7 +374,7 @@ class Env2048:
         Outputs:
             reward:     reward for move
         """
-        reward = 0
+        reward = 0.0
 
         # game over rewards
         # rationale: winning the game is the ultimate goal,
@@ -383,17 +383,15 @@ class Env2048:
         max_merge_reward = (self.get_state_dim() / 2) * (self.max_tile - 1)
         if end:
             if win:
-                # reward += max_merge_reward + 1
-                reward += 1
+                reward += max_merge_reward + 1
             else:
-                # reward += -(max_merge_reward + 1)
-                reward += -1
+                reward += -(max_merge_reward + 1)
 
-        # # additional reward is based on total merged tiles
-        # # rationale: higher total encourages merging
-        # # concern: this might cause the agent to prioritize high scores over winning
-        # #          maybe we only want to count the number of tiles merged?
-        # reward += tot_merged
+        # additional reward is based on total merged tiles
+        # rationale: higher total encourages merging
+        # concern: this might cause the agent to prioritize high scores over winning
+        #          maybe we only want to count the number of tiles merged?
+        reward += tot_merged
 
         # # additional reward is based on reaching a new max tile
         # # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
@@ -402,17 +400,18 @@ class Env2048:
         # new_max = np.max(new_grid)
 
         # if new_max > old_max:
-        #     reward += new_max
+        #     reward += new_max.item()
 
         # # additional reward is based on number of empty states
         # # rationale: higher number of empty states encourages merging
         # # concern: this is potentially captured in score/tot_merged
-        # num_empty = np.sum(new_grid == 0)
-        # reward += num_empty
+        # old_empty = np.sum(old_grid == 0).item()
+        # new_empty = np.sum(new_grid == 0).item()
+        # reward += new_empty - old_empty
 
         # additional small negative penalty to discourage non-moves
         if reward == 0 and np.all(old_grid == new_grid):
-            reward += -0.01
+            reward += -1
 
         return reward
 
