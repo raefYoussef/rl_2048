@@ -42,6 +42,7 @@ class BasicDQN:
         e_decay=1000,
         discount=0.99,
         learn_rate=1e-4,
+        update_rate=.0005,
         debug=False,
     ):
         self.reward = 0
@@ -56,6 +57,7 @@ class BasicDQN:
         self.e_decay = e_decay  # num steps needed before we only use e_end
         self.discount = discount
         self.learn_rate = learn_rate
+        self.update_rate = update_rate
         self.steps_done = 0
         self.replay_buffer = ReplayBuffer(buffer_size)
         if torch_device:
@@ -72,12 +74,12 @@ class BasicDQN:
         else:
             self.rng = np.random.default_rng(seed=None)
 
-        policy_net = dqn_module(observations_in_state, num_actions).to(self.device)
-        target_net = dqn_module(observations_in_state, num_actions).to(self.device)
-        target_net.load_state_dict(policy_net.state_dict())
+        self.policy_net = dqn_module(observations_in_state, num_actions).to(self.device)
+        self.target_net = dqn_module(observations_in_state, num_actions).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.AdamW(
-            policy_net.parameters(), lr=learn_rate, amsgrad=True
+            self.policy_net.parameters(), lr=learn_rate, amsgrad=True
         )
 
     def reset_game(self, initial_state):
@@ -97,16 +99,16 @@ class BasicDQN:
                 # t.max(1) will return the largest column value of each row.
                 # second column on max result is index of where max element was
                 # found, so we pick action with the larger expected reward.
-                return policy_net(state).max(1).indices.view(1, 1)
+                return self.policy_net(state).max(1).indices.view(1, 1)
         else:
             return torch.tensor(
-                [[self.rng.integers(0, 4)]], device=device, dtype=torch.long
+                [[self.rng.integers(0, 4)]], device=self.device, dtype=torch.long
             )
 
     def optimize_model(self):
         if len(self.replay_buffer) < self.batch_size:
             return
-        transitions = self.replay_buffer.sample(self.batch_size, self.rng)
+        transitions = self.replay_buffer.sample(self.batch_size)
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
         # detailed explanation). This converts batch-array of Transitions
         # to Transition of batch-arrays.
@@ -158,11 +160,35 @@ class BasicDQN:
         torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
         self.optimizer.step()
 
+    def act_and_learn(self, state, env):
+        action = self.select_action(state)
+        stat_obs, reward, score, end, win = env.step(action.item())
+        reward = torch.tensor([reward], device=self.device)
+        if end:
+            next_state = None
+        else:
+            next_state = torch.tensor(stat_obs.flatten(), dtype=torch.float, device=self.device).unsqueeze(0)
+
+        # Store the transition in memory
+        self.replay_buffer.push(state, action, next_state, reward)
+        # Perform one step of the optimization (on the policy network)
+        self.optimize_model()
+
+        # Soft update of the target network's weights
+        # θ′ ← τ θ + (1 −τ )θ′
+        target_net_state_dict = self.target_net.state_dict()
+        policy_net_state_dict = self.policy_net.state_dict()
+        for key in policy_net_state_dict:
+            target_net_state_dict[key] = policy_net_state_dict[key]*self.update_rate + target_net_state_dict[key]*(1-self.update_rate)
+        self.target_net.load_state_dict(target_net_state_dict)
+
+        if next_state is None:
+            high_tile = torch.max(state)
+        else:
+            high_tile = torch.max(next_state)
+        return state, action, next_state, reward, score, high_tile, end, win
+
     def select_action(self, state):
-        if state != self.state:
-            print(
-                f"Warning: {state} != current state {self.state}, you may have forgotten to update after acting"
-            )
         if self.terminal:
             print(f"Currently in terminal state {self.state}, can't act")
             return -1

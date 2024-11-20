@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
+from random import sample
 from collections import namedtuple, deque
 
 # set up matplotlib
@@ -21,11 +22,8 @@ class ReplayBuffer(object):
         """Save a transition"""
         self.buffer.append(Transition(*args))
 
-    def sample(self, batch_size, rng=None):
-        if rng:
-            return rng.choice(self.buffer, batch_size)
-        else:
-            return np.random.choice(self.buffer, batch_size)
+    def sample(self, batch_size):
+        return sample(self.buffer, batch_size)
 
     def __len__(self):
         return len(self.buffer)
