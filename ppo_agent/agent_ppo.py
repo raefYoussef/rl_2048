@@ -21,12 +21,14 @@ class AgentPPO:
         self,
         env,
         policy,
+        policy_hidden_dim: int = 64,
         seed: typing.Optional[float] = None,
         lr: float = 0.005,
         gamma: float = 0.95,
         clip: float = 0.2,
         num_updates: int = 5,
         max_batch_moves: int = 2048,
+        max_eps_moves: int = 2048,
         actor_path: typing.Union[Path, str] = "./model/ppo_actor.pth",
         critic_path: typing.Union[Path, str] = "./model/ppo_critic.pth",
         save_freq: int = 10,
@@ -37,12 +39,14 @@ class AgentPPO:
         Inputs:
             env:                Environment class (e.g. Env2048)
             policy:             Neural network class to use for actor/critic networks (e.g. PolicyMLP)
+            policy_hidden_dim:  Hidden dimension of policy DNN (default 64)
             seed:               RNG seed (default None, doesn't init RNG)
             lr:                 Actor/Critic Learning rate (default 0.005)
             gamma:              Discount factor to be applied when calculating Rewards-To-Go (default 0.95)
             clip:               PPO clipping factor (default .2)
             num_updates:        Number of updates per iteration (default: 5)
-            max_batch_moves:    Maximum number of moves per batch (default 2400)
+            max_batch_moves:    Maximum number of moves per batch (default 2048)
+            max_eps_moves:      Maximum number of moves per episode (default 2048)
             actor_path:         Path to actor weights (default: ./model/ppo_actor.pth)
             critic_path:        Path to critic weights (default: ./model/ppo_critic.pth)
             save_freq:          Iterations interval to save model weights (default: 10)
@@ -59,16 +63,18 @@ class AgentPPO:
         self.clip = clip
         self.num_updates = num_updates
         self.max_batch_moves = max_batch_moves
+        self.max_eps_moves = max_eps_moves
 
         # Model Configs
         self.policy = policy
+        self.policy_hidden_dim = policy_hidden_dim
         self.actor_path = actor_path
         self.critic_path = critic_path
         self.save_freq = save_freq
 
         # Extract environment information
         self.env = env
-        self.state_dim = env.get_state_dim()
+        self.state_dim = env.get_grid_dim()
         self.action_dim = env.get_action_dim()
 
         # Reset training params
@@ -95,9 +101,13 @@ class AgentPPO:
         # Initialize actor and critic networks
         # TODO: save/load actor/critic networks
         self.actor = self.policy(
-            in_dim=self.state_dim, out_dim=self.action_dim, hidden_dim=64
+            in_dim=self.state_dim,
+            out_dim=self.action_dim,
+            hidden_dim=self.policy_hidden_dim,
         )
-        self.critic = self.policy(in_dim=self.state_dim, out_dim=1, hidden_dim=64)
+        self.critic = self.policy(
+            in_dim=self.state_dim, out_dim=1, hidden_dim=self.policy_hidden_dim
+        )
 
         # Initialize optimizers for actor and critic
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -110,8 +120,10 @@ class AgentPPO:
             "iter_cnt": 0,  # number of learning iterations so far
             "batch_lens": [],  # episodic lengths in batch
             "batch_rewards": [],  # episodic returns in batch
+            "batch_ends": [],  # batch game completions
             "batch_wins": [],  # batch wins
             "batch_scores": [],  # batch scores
+            "batch_max_tile": [],  # batch max tile
             "actor_losses": [],  # losses of actor network in current iteration
             "critic_losses": [],  # losses of critic network in current iteration
         }
@@ -119,13 +131,16 @@ class AgentPPO:
         # Episodic stats
         self.eps_stats = {
             "eps_len": [],  # length of each episode
+            "eps_end": [],  # win status of each episode
             "eps_win": [],  # win status of each episode
             "eps_score": [],  # final score of each episode
             "eps_rewards": [],  # cumulative reward of each episode
             "eps_max_tile": [],  # max tile of each episode
         }
 
-    def select_action(self, state: typing.Union[npt.NDArray[np.float64], Tensor]) -> int:
+    def select_action(
+        self, state: typing.Union[npt.NDArray[np.float64], Tensor]
+    ) -> int:
         """
         Select an action for a given state
 
@@ -188,9 +203,9 @@ class AgentPPO:
             # This is the loop where we update our network for some n epochs
             for _ in range(self.num_updates):  # ALG STEP 6 & 7
                 # Pick randomly from batch to ensure fast training
-                # Give greater weights to more recent moves
                 num_moves = batch_actions.shape[0]
-                weights = torch.arange(1, num_moves + 1, dtype=torch.float)
+                # weights = torch.arange(1, num_moves + 1, dtype=torch.float)   # favors most recent
+                weights = torch.ones(num_moves, dtype=torch.float)  # uniform weights
                 indices = torch.multinomial(
                     weights / weights.sum(), self.max_batch_moves, replacement=False
                 )
@@ -302,9 +317,7 @@ class AgentPPO:
 
         # Calculate the log probabilities of batch actions using most recent actor network.
         logits = self.actor(states)
-        policy = nn.functional.softmax(logits, dim=-1)
-
-        dist = Categorical(policy)
+        dist = Categorical(logits=logits)
         log_probs = dist.log_prob(actions)
 
         # Return the value vector V of each observation in the batch
@@ -368,8 +381,10 @@ class AgentPPO:
         batch_rewards = []
         batch_rtgs = []
         batch_lens = []
+        batch_ends = []
         batch_wins = []
         batch_scores = []
+        batch_max_tile = []
 
         # Keep simulating until we've run more than or equal to specified moves per batch
         batch_move_cnt = 0
@@ -383,7 +398,7 @@ class AgentPPO:
             ep_move_cnt = 0
 
             # Run an episode
-            while not end:
+            while (not end) and (ep_move_cnt < self.max_eps_moves):
                 batch_move_cnt += 1  # Increment moves ran this batch so far
                 ep_move_cnt += 1
 
@@ -404,10 +419,13 @@ class AgentPPO:
             # Track episode stats
             batch_lens.append(ep_move_cnt + 1)
             batch_rewards.append(eps_rewards)
+            batch_ends.append(end)
             batch_wins.append(win)
             batch_scores.append(score)
+            batch_max_tile.append(self.env.get_max_tile())
 
             self.eps_stats["eps_len"].append(ep_move_cnt + 1)
+            self.eps_stats["eps_end"].append(end)
             self.eps_stats["eps_win"].append(win)
             self.eps_stats["eps_score"].append(score)
             self.eps_stats["eps_rewards"].append(np.sum(eps_rewards))
@@ -422,8 +440,10 @@ class AgentPPO:
         # Log the episodic returns and episodic lengths in this batch.
         self.logger["batch_rewards"] = batch_rewards
         self.logger["batch_lens"] = batch_lens
+        self.logger["batch_ends"].append(batch_ends)
         self.logger["batch_wins"].append(batch_wins)
         self.logger["batch_scores"].append(batch_scores)
+        self.logger["batch_max_tile"].append(batch_max_tile)
 
         return batch_states, batch_actions, batch_log_probs, batch_rtgs, batch_lens
 
@@ -452,8 +472,10 @@ class AgentPPO:
             [np.sum(eps_rewards) for eps_rewards in self.logger["batch_rewards"]]
         )
 
+        avg_ends = np.mean(self.logger["batch_ends"])
         avg_wins = np.mean(self.logger["batch_wins"])
         avg_score = np.mean(self.logger["batch_scores"])
+        avg_max_tile = np.mean(self.logger["batch_max_tile"])
 
         avg_actor_loss = np.mean(
             [losses.float().mean() for losses in self.logger["actor_losses"]]
@@ -476,8 +498,10 @@ class AgentPPO:
         )
         print(f"Average Episodic Length: {avg_ep_lens}", flush=True)
         print(f"Average Episodic Return: {avg_eps_rewards}", flush=True)
+        print(f"Average Game Comp.: {avg_ends : .2f}", flush=True)
         print(f"Average Win: {avg_wins : .2f}", flush=True)
         print(f"Average Score: {avg_score : .2f}", flush=True)
+        print(f"Average Max Tile: {avg_max_tile : .2f}", flush=True)
         print(f"Average Actor Loss: {avg_actor_loss}", flush=True)
         print(f"Average Critic Loss: {avg_critic_loss}", flush=True)
         print(f"Episodes So Far: {eps_cnt}", flush=True)
@@ -488,7 +512,9 @@ class AgentPPO:
         # Reset batch-specific logging data
         self.logger["batch_lens"] = []
         self.logger["batch_rewards"] = []
+        self.logger["batch_ends"] = []
         self.logger["batch_wins"] = []
         self.logger["batch_scores"] = []
+        self.logger["batch_max_tile"] = []
         self.logger["actor_losses"] = []
         self.logger["critic_losses"] = []

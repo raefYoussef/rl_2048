@@ -13,3 +13,78 @@ Reward Functions
    1. Oscillates and did not converge
 7. Same as #5, lr 1e-4 -> 1e-5, updates 100 -> 1000
    1. Too slow and did not converge
+8. Replaced Policy with CNN, reward is based on max merged tile for a move above 4
+   1. policy=PolicyCNN,
+        seed=1000,
+        gamma=0.99,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4094,
+   2. Each iteration takes ~11-14 seconds so 3x the amount. But we get a better performance 33.69%
+9. Changes Reward to add penalty for non moves, otherwise it adds reward for max merged
+   1.  agent = AgentPPO(
+        env=env,
+        policy=PolicyMLP,
+        seed=1000,
+        gamma=0.99,
+        clip=0.2,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4094,
+    )
+   2. Win = 9.67%
+10. Same as #4 but decrease hidden dim to 32 and add penalty for non-moves
+    1.  Perf 12.53% 
+    2.  The penalty hurts the performance a lot
+    3.  agent = AgentPPO(
+        env=env,
+        policy=PolicyMLP,
+        policy_hidden_dim=32,
+        seed=1000,
+        gamma=0.99,
+        clip=0.2,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4094,
+    )
+11. Same as #4 but increase hidden dim to 128
+    1.  Perf 30.84% 
+    2.  agent = AgentPPO(
+        env=env,
+        policy=PolicyMLP,
+        policy_hidden_dim=128,
+        seed=1000,
+        gamma=0.99,
+        clip=0.2,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4094,
+    )
+12. Decrease clip to .1
+    1.  19.35%
+    2.  agent = AgentPPO(
+        env=env,
+        policy=PolicyMLP,
+        policy_hidden_dim=64,
+        seed=1000,
+        gamma=0.99,
+        clip=0.1,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4094,
+    )
+13. Increase Clip to .3
+    1.  24%
+14. Reward for new max tile, game end gives you -max for loss
+    1.  33.04%
+    2.  agent = AgentPPO(
+        env=env,
+        policy=PolicyMLP,
+        policy_hidden_dim=64,
+        seed=1000,
+        gamma=0.99,
+        clip=0.2,
+        num_updates=100,
+        lr=1e-4,
+        max_batch_moves=4096,
+    )
