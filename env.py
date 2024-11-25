@@ -387,33 +387,33 @@ class Env2048:
         """
         reward = 0.0
 
-        # game over rewards
-        # rationale: winning the game is the ultimate goal,
-        #            it should be rewarded heavier than the greatest merging reward.
-        # concern: the loss penalty might be too large
-        max_merge_reward = (self.get_state_dim() / 2) * (self.max_tile - 1)
-        if end:
-            if win:
-                # reward += max_merge_reward
-                reward += 0
-            else:
-                # reward += -max_merge_reward
-                reward += -np.max(new_grid).item()
+        # # game over rewards
+        # # rationale: winning the game is the ultimate goal,
+        # #            it should be rewarded heavier than the greatest merging reward.
+        # # concern: the loss penalty might be too large
+        # max_merge_reward = (self.get_state_dim() / 2) * (self.max_tile - 1)
+        # if end:
+        #     if win:
+        #         # reward += max_merge_reward
+        #         reward += 0
+        #     else:
+        #         # reward += -max_merge_reward
+        #         reward += -np.max(new_grid).item()
 
-        # # additional reward is based on total merged tiles
-        # # rationale: higher total encourages merging
-        # # concern: this might cause the agent to prioritize high scores over winning
-        # #          maybe we only want to count the number of tiles merged?
-        # reward += tot_merged
+        # additional reward is based on total merged tiles
+        # rationale: higher total encourages merging
+        # concern: this might cause the agent to prioritize high scores over winning
+        #          maybe we only want to count the number of tiles merged?
+        reward += tot_merged
 
-        # additional reward is based on reaching a new max tile
-        # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
-        # concern: this might encourage short term merging strategy over long term
-        old_max = np.max(old_grid)
-        new_max = np.max(new_grid)
+        # # additional reward is based on reaching a new max tile
+        # # rationale: this should encourage the agent to reach new max tiles vs merging lower ones
+        # # concern: this might encourage short term merging strategy over long term
+        # old_max = np.max(old_grid)
+        # new_max = np.max(new_grid)
 
-        if new_max > old_max:
-            reward += new_max.item()
+        # if new_max > old_max:
+        #     reward += new_max.item()
 
         # # Reward for merging tiles
         # new_unique = np.unique(new_grid)

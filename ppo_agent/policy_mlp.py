@@ -26,7 +26,7 @@ class PolicyMLP(nn.Module):
         """
         super(PolicyMLP, self).__init__()
 
-        self.layer1 = nn.Linear(np.product(in_dim).item(), hidden_dim)
+        self.layer1 = nn.Linear(np.prod(in_dim).item(), hidden_dim)
         self.layer2 = nn.Linear(hidden_dim, hidden_dim)
         self.layer3 = nn.Linear(hidden_dim, out_dim)
 
