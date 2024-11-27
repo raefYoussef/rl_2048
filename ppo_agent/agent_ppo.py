@@ -498,7 +498,7 @@ class AgentPPO:
         )
         print(f"Average Episodic Length: {avg_ep_lens}", flush=True)
         print(f"Average Episodic Return: {avg_eps_rewards}", flush=True)
-        print(f"Average Game Comp.: {avg_ends : .2f}", flush=True)
+        print(f"Average Game Completion: {avg_ends : .2f}", flush=True)
         print(f"Average Win: {avg_wins : .2f}", flush=True)
         print(f"Average Score: {avg_score : .2f}", flush=True)
         print(f"Average Max Tile: {avg_max_tile : .2f}", flush=True)

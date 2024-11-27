@@ -12,7 +12,13 @@ class Env2048:
     """Env2048 is a class for playing 2048"""
 
     def __init__(
-        self, n_rows=4, n_cols=4, max_tile=11, init_state=None, debug=False
+        self,
+        n_rows=4,
+        n_cols=4,
+        max_tile=11,
+        reward_fn=None,
+        init_state=None,
+        debug=False,
     ) -> None:
         """
         Env2048(n_rows=4, n_cols=4, max_tile=11, init_state=np.array([]))
@@ -23,12 +29,19 @@ class Env2048:
             n_rows:         Number of grid rows
             n_cols:         Number of grid columns
             max_tile:       Maximum allowable tile. Game is won upon reaching this tile value.
+            reward_fn:      Custom reward function. Has to adhere to interface.
             init_state:     A 'grid' from a previous run. If provided it will act as board starting position.
             debug:          Init RNG seed.
         """
         self.max_tile = max_tile
         self.min_tile = 1  # 2^1 = 2
         self.num_actions = 4
+
+        if reward_fn:
+            self.reward_fn = reward_fn
+        else:
+            self.reward_fn = self._default_reward_fn
+
         if debug:
             self.rng = np.random.default_rng(seed=100)
         else:
@@ -189,7 +202,7 @@ class Env2048:
             self.win = win
 
             # calculate reward
-            reward = self._calc_reward(
+            reward = self.reward_fn(
                 self.grid, new_grid, self.score, tot_merged, end, win
             )
 
@@ -360,7 +373,7 @@ class Env2048:
     # TODO: need to review
     # probaly something we need to investigate and experiment with when we have our model up
     # our model may also influence how we want this to look
-    def _calc_reward(
+    def _default_reward_fn(
         self,
         old_grid: npt.NDArray[np.int_],
         new_grid: npt.NDArray[np.int_],
@@ -370,7 +383,7 @@ class Env2048:
         win: bool,
     ) -> float:
         """
-        _calc_reward(grid, score, tot_merged, end, win)
+        _default_reward_fn(grid, score, tot_merged, end, win)
 
         Reward Function
 
