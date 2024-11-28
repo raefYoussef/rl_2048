@@ -30,12 +30,12 @@ def reward_empty_tiles(old_grid, new_grid, score, tot_merged, end, win) -> float
 
 def reward_win(old_grid, new_grid, score, tot_merged, end, win) -> float:
     """
-    Encourage wins.
+    Encourage wins. Uses constant reward.
     """
 
     reward = 0
     if end and win:
-        reward = 100
+        reward = 1
     return reward
 
 
@@ -72,21 +72,21 @@ def reward_new_tiles(old_grid, new_grid, score, tot_merged, end, win) -> float:
 
 def penalize_loss(old_grid, new_grid, score, tot_merged, end, win) -> float:
     """
-    Discourage losses.
+    Discourage losses. Use constant penalty.
     """
     reward = 0
     if end and not win:
-        reward = -100
+        reward = -1
     return reward
 
 
-def penalize_no_op(old_grid, new_grid, score, tot_merged, end, win) -> float:
+def penalize_non_moves(old_grid, new_grid, score, tot_merged, end, win) -> float:
     """
     Discourage non-moves.
     """
     reward = 0
     if np.all(old_grid == new_grid):
-        reward = -0.5
+        reward = -1e-2
     return reward
 
 
@@ -97,7 +97,8 @@ def exp_rewards():
         "max_tile": [reward_max_tile],
         "new_tiles": [reward_new_tiles],
         "empty_tiles": [reward_empty_tiles],
-        "win_loss": [reward_win, penalize_loss],
+        "win": [reward_win, penalize_non_moves],
+        "win_loss": [reward_win, penalize_loss, penalize_non_moves],
     }
     agent_files = {}
 
