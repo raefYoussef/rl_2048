@@ -1,5 +1,6 @@
-import numpy as np
 import os
+import numpy as np
+from itertools import combinations
 
 from env import Env2048
 from ppo_agent.agent_ppo import AgentPPO
@@ -87,6 +88,38 @@ def penalize_non_moves(old_grid, new_grid, score, tot_merged, end, win) -> float
     reward = 0
     if np.all(old_grid == new_grid):
         reward = -1e-2
+    return reward
+
+
+def largest_tile_in_corner(old_grid, new_grid, score, tot_merged, end, win):
+    reward = 0
+    corners = [new_grid[0][0], new_grid[0][-1], new_grid[-1][0], new_grid[-1][-1]]
+    max_tile = np.max(new_grid)
+
+    if max_tile in corners:
+        reward = 1
+
+    return reward
+
+
+def high_tile_clustering(old_grid, new_grid, score, tot_merged, end, win):
+    reward = 0
+
+    high_value_tiles = [
+        (i, j)
+        for i, row in enumerate(new_grid)
+        for j, tile in enumerate(row)
+        if tile > 2
+    ]
+
+    if len(high_value_tiles) < 2:
+        return reward
+
+    distances = [
+        abs(i1 - i2) + abs(j1 - j2)
+        for (i1, j1), (i2, j2) in combinations(high_value_tiles, 2)
+    ]
+    reward = -sum(distances) / len(distances)
     return reward
 
 

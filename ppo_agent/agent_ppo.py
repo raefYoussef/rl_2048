@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.optim import Adam
 from torch.distributions import Categorical
+from torch import device
 
 
 class AgentPPO:
@@ -26,12 +27,15 @@ class AgentPPO:
         lr: float = 0.005,
         gamma: float = 0.95,
         clip: float = 0.2,
+        target_kl: typing.Optional[float] = None,
+        max_grad_norm: typing.Optional[float] = None,
         num_updates: int = 5,
         max_batch_moves: int = 2048,
         max_eps_moves: int = 2048,
-        actor_path: typing.Union[Path, str] = "./model/ppo_actor.pth",
-        critic_path: typing.Union[Path, str] = "./model/ppo_critic.pth",
+        actor_path: typing.Optional[typing.Union[Path, str]] = None,
+        critic_path: typing.Optional[typing.Union[Path, str]] = None,
         save_freq: int = 10,
+        device: torch.device = torch.device("cpu"),
     ) -> None:
         """
         Initializes the PPO model, including hyperInputs.
@@ -39,17 +43,20 @@ class AgentPPO:
         Inputs:
             env:                Environment class (e.g. Env2048)
             policy:             Neural network class to use for actor/critic networks (e.g. PolicyMLP)
-            policy_hidden_dim:  Hidden dimension of policy DNN (default 64)
-            seed:               RNG seed (default None, doesn't init RNG)
-            lr:                 Actor/Critic Learning rate (default 0.005)
-            gamma:              Discount factor to be applied when calculating Rewards-To-Go (default 0.95)
-            clip:               PPO clipping factor (default .2)
+            policy_hidden_dim:  Hidden dimension of policy DNN (default: 64)
+            seed:               RNG seed (default: None -> doesn't init RNG)
+            lr:                 Actor/Critic Learning rate (default: 0.005)
+            gamma:              Discount factor to be applied when calculating Rewards-To-Go (default: 0.95)
+            clip:               PPO clipping factor (default: .2)
+            target_kl:          KL Divergence threshold (default: None/disabled)(Reasonable value is 0.02)
+            max_grad_norm:      Clip the gradient norm (default: None/disabled)(Reasonable value is .5)
             num_updates:        Number of updates per iteration (default: 5)
-            max_batch_moves:    Maximum number of moves per batch (default 2048)
-            max_eps_moves:      Maximum number of moves per episode (default 2048)
-            actor_path:         Path to actor weights (default: ./model/ppo_actor.pth)
-            critic_path:        Path to critic weights (default: ./model/ppo_critic.pth)
+            max_batch_moves:    Maximum number of moves per batch (default: 2048)
+            max_eps_moves:      Maximum number of moves per episode (default: 2048)
+            actor_path:         Path to actor weights  (default: None -> No save/load)
+            critic_path:        Path to critic weights (default: None -> No save/load)
             save_freq:          Iterations interval to save model weights (default: 10)
+            device:             Model device (CPU/GPU) (default: cpu)
 
         Outputs:
             None
@@ -64,6 +71,8 @@ class AgentPPO:
         self.num_updates = num_updates
         self.max_batch_moves = max_batch_moves
         self.max_eps_moves = max_eps_moves
+        self.target_kl = target_kl
+        self.max_grad_norm = max_grad_norm
 
         # Model Configs
         self.policy = policy
@@ -71,6 +80,9 @@ class AgentPPO:
         self.actor_path = actor_path
         self.critic_path = critic_path
         self.save_freq = save_freq
+
+        # GPU
+        self.device = device
 
         # Extract environment information
         self.env = env
@@ -99,7 +111,6 @@ class AgentPPO:
             torch.manual_seed(self.seed)
 
         # Initialize actor and critic networks
-        # TODO: save/load actor/critic networks
         self.actor = self.policy(
             in_dim=self.state_dim,
             out_dim=self.action_dim,
@@ -108,6 +119,19 @@ class AgentPPO:
         self.critic = self.policy(
             in_dim=self.state_dim, out_dim=1, hidden_dim=self.policy_hidden_dim
         )
+
+        # Load Model Weights
+        if self.actor_path and self.critic_path:
+            self.actor.load_state_dict(
+                torch.load(self.actor_path, map_location=self.device)
+            )
+            self.critic.load_state_dict(
+                torch.load(self.critic_path, map_location=self.device)
+            )
+
+        # Move to GPU if needed
+        self.actor = self.actor.to(self.device)
+        self.critic = self.critic.to(self.device)
 
         # Initialize optimizers for actor and critic
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -222,7 +246,9 @@ class AgentPPO:
                 # here's a great explanation:
                 # https://cs.stackexchange.com/questions/70518/why-do-we-use-the-log-in-gradient-based-reinforcement-algorithms
                 # TL;DR makes gradient ascent easier behind the scenes.
-                ratios = torch.exp(curr_log_probs - batch_log_probs[indices])
+                log_ratios = curr_log_probs - batch_log_probs[indices]
+                ratios = torch.exp(log_ratios)
+                approx_kl = ((ratios - 1) - log_ratios).mean()
 
                 # Calculate surrogate losses.
                 surr1 = ratios * A_k[indices]
@@ -238,25 +264,40 @@ class AgentPPO:
                 # Calculate gradients and perform backward propagation for actor network
                 self.actor_optim.zero_grad()
                 actor_loss.backward(retain_graph=True)
+                if self.max_grad_norm:
+                    nn.utils.clip_grad_norm_(
+                        self.actor.parameters(), self.max_grad_norm
+                    )
                 self.actor_optim.step()
 
                 # Calculate gradients and perform backward propagation for critic network
                 self.critic_optim.zero_grad()
                 critic_loss.backward()
+                if self.max_grad_norm:
+                    nn.utils.clip_grad_norm_(
+                        self.critic.parameters(), self.max_grad_norm
+                    )
                 self.critic_optim.step()
 
                 # Log losses
-                self.logger["actor_losses"].append(actor_loss.detach())
-                self.logger["critic_losses"].append(critic_loss.detach())
+                self.logger["actor_losses"].append(actor_loss.cpu().detach())
+                self.logger["critic_losses"].append(critic_loss.cpu().detach())
+
+                # Break if KL divergence exceeds thresholds
+                if (self.target_kl) and (approx_kl > self.target_kl):
+                    break
 
             # Print a summary of our training so far
             self._log_summary()
 
-            # TODO: add model saving
-            # # Save our model if it's time
-            # if iter_cnt % self.save_freq == 0:
-            #     torch.save(self.actor.state_dict(), "./ppo_actor.pth")
-            #     torch.save(self.critic.state_dict(), "./ppo_critic.pth")
+            # Save our models
+            if (
+                self.actor_path
+                and self.critic_path
+                and (iter_cnt % self.save_freq == 0)
+            ):
+                torch.save(self.actor.state_dict(), self.actor_path)
+                torch.save(self.critic.state_dict(), self.critic_path)
 
     def log_statistics(self, filename):
         """
@@ -281,6 +322,11 @@ class AgentPPO:
             action:     The action to take
             log_prob:   The log probability of the selected action in the distribution
         """
+
+        if isinstance(state, np.ndarray):
+            state = torch.tensor(state.copy(), dtype=torch.float).to(self.device)
+        else:
+            state = state.to(self.device)
 
         # Query the actor network for the policy (prob of selecting each action)
         logits = self.actor(state)
@@ -312,6 +358,11 @@ class AgentPPO:
             V:          The predicted value for each state
             log_probs:  The log probabilities of the actions taken in givens each (state, action) pair
         """
+        if isinstance(states, np.ndarray):
+            states = torch.tensor(states.copy(), dtype=torch.float).to(self.device)
+        else:
+            states = states.to(self.device)
+
         # Query critic network for the state value, V(s)
         V = self.critic(states).squeeze()
 
@@ -353,7 +404,7 @@ class AgentPPO:
                 eps_rtg.insert(0, discounted_reward)
 
         # Convert the rewards-to-go into a tensor
-        batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
+        batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float).to(self.device)
 
         return batch_rtgs
 
@@ -432,9 +483,13 @@ class AgentPPO:
             self.eps_stats["eps_max_tile"].append(self.env.get_max_tile())
 
         # Reshape data as tensors in the shape specified in function description, before returning
-        batch_states = torch.tensor(np.array(batch_states), dtype=torch.float)
-        batch_actions = torch.tensor(batch_actions, dtype=torch.float)
-        batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
+        batch_states = torch.tensor(np.array(batch_states), dtype=torch.float).to(
+            self.device
+        )
+        batch_actions = torch.tensor(batch_actions, dtype=torch.float).to(self.device)
+        batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float).to(
+            self.device
+        )
         batch_rtgs = self._compute_rtgs(batch_rewards)  # ALG STEP 4
 
         # Log the episodic returns and episodic lengths in this batch.
