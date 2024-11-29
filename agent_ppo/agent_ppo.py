@@ -2,6 +2,7 @@ import typing
 import numpy.typing as npt
 from pathlib import Path
 import time
+import os
 
 import pandas as pd
 import numpy as np
@@ -121,12 +122,21 @@ class AgentPPO:
         )
 
         # Load Model Weights
-        if self.actor_path and self.critic_path:
+        if (
+            self.actor_path
+            and os.path.exists(self.actor_path)
+            and self.critic_path
+            and os.path.exists(self.critic_path)
+        ):
             self.actor.load_state_dict(
-                torch.load(self.actor_path, map_location=self.device)
+                torch.load(
+                    self.actor_path, map_location=self.device, weights_only=False
+                )
             )
             self.critic.load_state_dict(
-                torch.load(self.critic_path, map_location=self.device)
+                torch.load(
+                    self.critic_path, map_location=self.device, weights_only=False
+                )
             )
 
         # Move to GPU if needed

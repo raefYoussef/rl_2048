@@ -3,9 +3,9 @@ import numpy as np
 from itertools import combinations
 
 from env import Env2048
-from ppo_agent.agent_ppo import AgentPPO
-from ppo_agent.policy_mlp import PolicyMLP
-from ppo_agent.policy_cnn import PolicyCNN
+from agent_ppo.agent_ppo import AgentPPO
+from agent_ppo.policy_mlp import PolicyMLP
+from agent_ppo.policy_cnn import PolicyCNN
 from stat_plotter.stat_plotter import StatsPlotter
 
 
@@ -36,7 +36,7 @@ def reward_new_tiles(old_grid, new_grid, score, tot_merged, end, win) -> float:
 
 
 def exp_network():
-    exp_dir = "logs/grid_3_3_6/exp_test/"
+    exp_dir = "logs/grid_3_3_6/exp_network/"
     networks = {"MLP": PolicyMLP, "CNN": PolicyCNN}
 
     rewards = {
