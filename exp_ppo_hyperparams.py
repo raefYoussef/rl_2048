@@ -298,63 +298,6 @@ def exp_lr():
     )
 
 
-def exp_hidden():
-    exp_dir = "logs/grid_3_3_6/exp_mlp_hidden/"
-    sweep = [16, 32, 64, 128, 256]
-    agent_files = {}
-
-    os.makedirs(exp_dir, exist_ok=True)
-
-    for hidden in sweep:
-        env = Env2048(3, 3, 6, debug=True)
-        agent = AgentPPO(
-            env=env,
-            policy=PolicyMLP,
-            policy_hidden_dim=hidden,
-            seed=1000,
-            gamma=0.99,
-            clip=0.4,
-            num_updates=100,
-            lr=1e-4,
-            max_batch_moves=4096,
-            max_eps_moves=512,
-        )
-        agent.learn(num_eps=10000)
-
-        log_file = exp_dir + f"train_log_{hidden}.csv"
-        agent.log_statistics(log_file)
-
-        agent_files[f"Hidden Dim: {hidden}"] = log_file
-
-    plotter = StatsPlotter(agent_files)
-    plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_max_tile",
-        filt_width=750,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-    plotter.plot_metric(
-        metric="eps_rewards",
-        filt_width=750,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-
-
 def exp_kl():
     exp_dir = "logs/grid_3_3_6/exp_kl/"
     sweep = [None, 0.01, 0.02, 0.03, 0.04, 0.05]
@@ -482,6 +425,5 @@ if __name__ == "__main__":
     # exp_clipping()
     # exp_batch()
     # exp_lr()
-    # exp_hidden()
     exp_kl()
     exp_grad_norm()

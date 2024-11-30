@@ -12,7 +12,10 @@ from stat_plotter.stat_plotter import StatsPlotter
 
 def exp_encoding():
     exp_dir = "logs/grid_3_3_6/exp_encoding/"
-    encoding = {"onehot": True, "log2": False}
+    encoding = {
+        "onehot": True,
+        "log2": False,
+    }
     networks = {
         "MLP": PolicyMLP,
         "CNN": PolicyCNN,
@@ -29,6 +32,11 @@ def exp_encoding():
     for enc_name, enc_val in encoding.items():
         for network_name, network_val in networks.items():
             for reward_name, reward_list in rewards.items():
+                # Log file name
+                log_file = (
+                    exp_dir + f"train_log_{enc_name}_{network_name}_{reward_name}.csv"
+                )
+
                 # Lambda to sum the results of the reward functions
                 reward_fn = lambda *args: sum(func(*args) for func in reward_list)
                 env = Env2048(
@@ -48,9 +56,6 @@ def exp_encoding():
                 )
                 agent.learn(num_eps=10000)
 
-                log_file = (
-                    exp_dir + f"train_log_{enc_name}_{network_name}_{reward_name}.csv"
-                )
                 agent.log_statistics(log_file)
 
                 agent_files[
