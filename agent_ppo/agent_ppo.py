@@ -39,7 +39,7 @@ class AgentPPO:
         device: torch.device = torch.device("cpu"),
     ) -> None:
         """
-        Initializes the PPO model, including hyperInputs.
+        Initializes the PPO model, including hyperparameters.
 
         Inputs:
             env:                Environment class (e.g. Env2048)
@@ -185,8 +185,20 @@ class AgentPPO:
             action:     The action to take
         """
 
+        # Convert observation to tensor if it's a numpy array
+        if isinstance(state, np.ndarray):
+            state = torch.tensor(state.copy(), dtype=torch.float)
+        else:
+            state = state.to(self.device)
+
+        # Add batch and channel dimensions as needed
+        if state.dim == 2:  # log2 grid
+            state = state.unsqueeze(0).unsqueeze(0)
+        else:  # one hot grid
+            state = state.unsqueeze(0)
+
         # Query the actor network for the policy (prob of selecting each action)
-        logits = self.actor(state).detach()
+        logits = self.actor(state).detach().squeeze(0)
         policy = nn.functional.softmax(logits, dim=-1).tolist()
         action = policy.index(max(policy))
         return action
@@ -333,18 +345,24 @@ class AgentPPO:
             log_prob:   The log probability of the selected action in the distribution
         """
 
+        # Convert observation to tensor if it's a numpy array
         if isinstance(state, np.ndarray):
             state = torch.tensor(state.copy(), dtype=torch.float).to(self.device)
         else:
             state = state.to(self.device)
 
+        # Add batch and channel dimensions as needed
+        if state.dim() == 2:  # log2 grid (H,W)
+            state = state.unsqueeze(0).unsqueeze(0)
+        elif state.dim() == 3:  # onehot grid (C,H,W)
+            state = state.unsqueeze(0)
+
         # Query the actor network for the policy (prob of selecting each action)
-        logits = self.actor(state)
+        logits = self.actor(state).squeeze(0)
 
         # Sample an action from the distribution
         dist = Categorical(logits=logits)
         action = dist.sample()
-        # action = torch.argmax(logits, dim=-1)
 
         # Calculate the log probability for that action
         log_prob = dist.log_prob(action)
@@ -373,11 +391,15 @@ class AgentPPO:
         else:
             states = states.to(self.device)
 
+        # Add batch and channel dimensions as needed
+        if states.dim() == 3:  # log2 grid (B,H,W)
+            states = states.unsqueeze(1)
+
         # Query critic network for the state value, V(s)
         V = self.critic(states).squeeze()
 
         # Calculate the log probabilities of batch actions using most recent actor network.
-        logits = self.actor(states)
+        logits = self.actor(states).squeeze()
         dist = Categorical(logits=logits)
         log_probs = dist.log_prob(actions)
 

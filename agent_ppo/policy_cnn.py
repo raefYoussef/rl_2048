@@ -26,9 +26,14 @@ class PolicyCNN(nn.Module):
         """
         super(PolicyCNN, self).__init__()
 
+        if len(in_dim) == 2:  # log2 grid
+            num_chan = 1
+        else:
+            num_chan = in_dim[0]
+
         # Define convolutional layers
         self.conv1 = nn.Conv2d(
-            in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1
+            in_channels=num_chan, out_channels=16, kernel_size=3, stride=1, padding=1
         )
         self.conv2 = nn.Conv2d(
             in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1
@@ -41,7 +46,9 @@ class PolicyCNN(nn.Module):
         self.fc1 = nn.Linear(conv_out_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, out_dim)
 
-    def _get_conv_output(self, shape: tuple[int, int]) -> int:
+    def _get_conv_output(
+        self, shape: Union[tuple[int, int, int], tuple[int, int]]
+    ) -> int:
         """
         Helper function to calculate the output size of the CNN layers.
 
@@ -51,7 +58,10 @@ class PolicyCNN(nn.Module):
         Outputs:
             Flattened size after convolutions
         """
-        dummy_input = torch.zeros(1, 1, *shape)  # Batch size 1, single channel
+        if len(shape) == 2:  # log2 grid
+            dummy_input = torch.zeros(1, 1, *shape)  # Batch size 1, single channel
+        else:
+            dummy_input = torch.zeros(1, *shape)  # Batch size 1
         output = self.conv2(self.conv1(dummy_input))
         return int(np.prod(output.size()))
 
@@ -60,21 +70,11 @@ class PolicyCNN(nn.Module):
         Runs a forward pass of the neural network.
 
         Inputs:
-            state: State input (single 2D grid)
+            state:      State input (B,C,H,W)
 
         Outputs:
-            policy_out: Output of the policy network
+            cnn_out:    Output of the policy network
         """
-        # Convert to tensor if input is a NumPy array
-        if isinstance(state, np.ndarray):
-            state = torch.tensor(state.copy(), dtype=torch.float)
-
-        # Add channel dimensions
-        if state.dim() == 2:
-            state = state.unsqueeze(0)  # Add batch dimension
-            state = state.unsqueeze(0)  # Add channel dimension
-        if state.dim() == 3:
-            state = state.unsqueeze(1)  # Add batch dimension
 
         # Convolutional layers
         x = F.relu(self.conv1(state))
@@ -85,6 +85,6 @@ class PolicyCNN(nn.Module):
 
         # Fully connected layers
         x = F.relu(self.fc1(x))
-        policy_out = self.fc2(x)
+        cnn_out = self.fc2(x)
 
-        return policy_out
+        return cnn_out

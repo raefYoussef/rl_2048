@@ -30,27 +30,20 @@ class PolicyMLP(nn.Module):
         self.layer2 = nn.Linear(hidden_dim, hidden_dim)
         self.layer3 = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, state: Union[npt.NDArray[np.float64], Tensor]) -> Tensor:
+    def forward(self, state: Tensor) -> Tensor:
         """
         Runs a forward pass of the neural network
 
         Inputs:
-            state:      state input
+            state:      state input (B,C,H,W)
 
         Outputs:
             mlp_out:    MLP output
         """
-        # Convert observation to tensor if it's a numpy array
-        if isinstance(state, np.ndarray):
-            state = torch.tensor(state.copy(), dtype=torch.float)
 
-        # expects grids so we need to flatten each grid
-        if state.dim() == 2:
-            state = state.flatten()
-        elif state.dim() == 3:
-            state = state.reshape(state.shape[0], -1)
-
-        layer1_output = F.relu(self.layer1(state))
+        # expects grids (log2 or onehot) so we need to flatten each grid
+        flattened_state = state.reshape(state.shape[0], -1)
+        layer1_output = F.relu(self.layer1(flattened_state))
         layer2_output = F.relu(self.layer2(layer1_output))
         mlp_out = self.layer3(layer2_output)
 

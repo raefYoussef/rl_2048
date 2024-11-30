@@ -17,6 +17,7 @@ class Env2048:
         n_cols=4,
         max_tile=11,
         reward_fn=None,
+        onehot_enc=False,
         init_state=None,
         debug=False,
     ) -> None:
@@ -30,12 +31,14 @@ class Env2048:
             n_cols:         Number of grid columns
             max_tile:       Maximum allowable tile. Game is won upon reaching this tile value.
             reward_fn:      Custom reward function. Has to adhere to interface.
+            onehot_enc:     Flag that controls encoding of state. Does not change internal representation. (default: False)
             init_state:     A 'grid' from a previous run. If provided it will act as board starting position.
             debug:          Init RNG seed.
         """
         self.max_tile = max_tile
         self.min_tile = 1  # 2^1 = 2
         self.num_actions = 4
+        self.onehot_enc = onehot_enc
 
         if reward_fn:
             self.reward_fn = reward_fn
@@ -78,8 +81,14 @@ class Env2048:
             starting_ind = self.rng.choice(len(empty_cells), 2, replace=False)
             self.grid[empty_cells[starting_ind[0]]] = self.min_tile
             self.grid[empty_cells[starting_ind[1]]] = self.min_tile
-        else:  # init state is provided
-            self.grid = init_state
+        # init state is provided
+        else:
+            # One-hot encoding
+            if self.onehot_enc:
+                self.grid = self._onehot_decode(init_state)
+            # Log2 Encoding
+            else:
+                self.grid = init_state
 
         # reset vars
         self.score = 0
@@ -95,7 +104,11 @@ class Env2048:
             "end": [],
             "win": [],
         }
-        return self.grid
+
+        if self.onehot_enc:
+            return self._onehot_encode(self.grid)
+        else:
+            return self.grid
 
     def get_action_dim(self) -> int:
         """
@@ -129,7 +142,10 @@ class Env2048:
         Outputs:
             dim:   Number of Board size
         """
-        return [self.nrows, self.ncols]
+        if self.onehot_enc:
+            return [self.max_tile, self.nrows, self.ncols]
+        else:
+            return [self.nrows, self.ncols]
 
     def get_state(self) -> npt.NDArray[np.int_]:
         """
@@ -140,7 +156,10 @@ class Env2048:
         Outputs:
             Grid:   Current grid
         """
-        return self.grid
+        if self.onehot_enc:
+            return self._onehot_encode(self.grid)
+        else:
+            return self.grid
 
     def get_score(self) -> int:
         """
@@ -223,7 +242,7 @@ class Env2048:
 
             # return outputs
             ret_vals = (
-                self.grid,
+                self._onehot_encode(self.grid) if self.onehot_enc else self.grid,
                 self.history["reward"][-1],
                 self.history["score"][-1],
                 self.history["end"][-1],
@@ -234,7 +253,7 @@ class Env2048:
         else:
             # no more rewards
             ret_vals = (
-                self.grid,
+                self._onehot_encode(self.grid) if self.onehot_enc else self.grid,
                 0,
                 self.history["score"][-1],
                 self.history["end"][-1],
@@ -498,3 +517,45 @@ class Env2048:
                 last_action = history["action"][row_i - 1]
                 prev_reward = history["reward"][row_i - 1]
             self.print_state(flat_state, rows, cols, score, last_action, prev_reward)
+
+    def _onehot_encode(self, log2_grid: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:
+        """
+        _onehot_encode(grid)
+
+        Encode a grid as one-hot
+
+        Inputs:
+            grid:   log2 grid (nrows, ncols)
+
+        Outputs:
+            grid:   one-hot grid (max_tile, nrows, ncols)
+        """
+
+        # Create a matrix for one-hot encoding
+        onehot_grid = np.zeros((self.max_tile, self.nrows, self.ncols), dtype=int)
+
+        for tileIdx in range(self.max_tile):
+            onehot_grid[tileIdx, :] = log2_grid == (tileIdx + 1)
+
+        return onehot_grid
+
+    def _onehot_decode(self, onehot_grid: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:
+        """
+        _onehot_decode(grid)
+
+        Decode one-hot grid
+
+        Inputs:
+            onehot_grid:    one-hot grid (max_tile, nrows, ncols)
+
+        Outputs:
+            log2_grid:      log2 grid (nrows, ncols)
+        """
+
+        # Create a matrix for one-hot encoding
+        log2_grid = np.zeros((self.nrows, self.ncols), dtype=int)
+
+        for tileIdx in range(self.max_tile):
+            log2_grid += log2_grid[tileIdx, :, :] * (2 ** (tileIdx + 1))
+
+        return log2_grid

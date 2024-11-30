@@ -2,7 +2,7 @@ import os
 import numpy as np
 from itertools import combinations
 
-from env import Env2048
+from env2048.env2048 import Env2048
 from agent_ppo.agent_ppo import AgentPPO
 from agent_ppo.policy_mlp import PolicyMLP
 from agent_ppo.policy_cnn import PolicyCNN
