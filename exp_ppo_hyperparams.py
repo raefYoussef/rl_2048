@@ -39,27 +39,27 @@ def exp_updates():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -96,27 +96,27 @@ def exp_gamma():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -153,27 +153,27 @@ def exp_clipping():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -214,27 +214,27 @@ def exp_batch():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -271,27 +271,27 @@ def exp_lr():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -334,27 +334,27 @@ def exp_kl():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
@@ -392,27 +392,27 @@ def exp_grad_norm():
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
-        metric="eps_win", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_end", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_len", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
-        metric="eps_score", filt_width=750, compare=True, mode="save", save_path=exp_dir
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
     )
     plotter.plot_metric(
         metric="eps_max_tile",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
     )
     plotter.plot_metric(
         metric="eps_rewards",
-        filt_width=750,
+        filt_width=500,
         compare=True,
         mode="save",
         save_path=exp_dir,
