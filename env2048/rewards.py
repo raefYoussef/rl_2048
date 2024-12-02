@@ -200,3 +200,19 @@ def reward_practical_strategies(
     R_total = alpha * R_corner + beta * R_cluster + gamma * R_monotonic
 
     return R_total
+
+
+def reward_merging_penalize_moved_tiles(
+    old_grid, action, new_grid, tot_merged, score, end, win, num_moves
+) -> float:
+    """
+    Reward merging and penalize unnecessary tile movement
+    """
+    reward = 0
+    reward += reward_merging(
+        old_grid, action, new_grid, tot_merged, score, end, win, num_moves
+    )
+    reward += 0.1 * penalize_moved_tiles(
+        old_grid, action, new_grid, tot_merged, score, end, win, num_moves
+    )
+    return reward
