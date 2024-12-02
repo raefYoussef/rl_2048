@@ -16,18 +16,12 @@ def exp_lr():
     agent_files = {}
 
     os.makedirs(exp_dir, exist_ok=True)
+    reward_fn = reward_merging_penalize_moved_tiles
 
     for lr in sweep:
         log_file = exp_dir + f"train_log_{lr}.csv"
 
-        env = Env2048(
-            3,
-            3,
-            6,
-            debug=True,
-            onehot_enc=True,
-            reward_fn=reward_merging_penalize_moved_tiles,
-        )
+        env = Env2048(3, 3, 6, debug=True, onehot_enc=True, reward_fn=reward_fn)
         agent = AgentPPO(
             env=env,
             policy=PolicyMLP,
@@ -195,9 +189,12 @@ def exp_clipping():
     agent_files = {}
 
     os.makedirs(exp_dir, exist_ok=True)
+    reward_fn = reward_merging_penalize_moved_tiles
 
     for clip in sweep:
-        env = Env2048(3, 3, 6, debug=True)
+        log_file = exp_dir + f"train_log_{clip}.csv"
+
+        env = Env2048(3, 3, 6, debug=True, onehot_enc=True, reward_fn=reward_fn)
         agent = AgentPPO(
             env=env,
             policy=PolicyMLP,
@@ -210,9 +207,8 @@ def exp_clipping():
             max_batch_moves=4096,
             max_eps_moves=512,
         )
-        agent.learn(num_eps=10000)
 
-        log_file = exp_dir + f"train_log_{clip}.csv"
+        agent.learn(num_eps=10000)
         agent.log_statistics(log_file)
 
         agent_files[f"Clip: {clip}"] = log_file
@@ -432,8 +428,8 @@ if __name__ == "__main__":
     # ------------------
     # High Impact
     # ------------------
-    exp_lr()
-    # exp_clipping()
+    # exp_lr()
+    exp_clipping()
     # ------------------
     # Medium Impact
     # ------------------
