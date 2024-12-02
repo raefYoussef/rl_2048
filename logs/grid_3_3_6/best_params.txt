@@ -1,0 +1,10 @@
+Best Params:
+Batch/Updates - 4096/200
+Clipping - [.4, .2]
+Gamma - [.99, 1]
+LR - [1e-4, 1e-5]
+MLP hidden - 64
+Network: CNN
+Reward: new tile
+Grad Norm: None
+KL: 0-.02
