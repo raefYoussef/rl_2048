@@ -193,7 +193,6 @@ def exp_gamma():
     reward_fn = reward_merging_penalize_moved_tiles
     exp_dir = "logs/grid_3_3_6/exp_gamma/"
     sweep = [1, 0.99, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7]
-    # sweep = [0.75, 0.7]
     agent_files = {}
 
     os.makedirs(exp_dir, exist_ok=True)
@@ -249,6 +248,7 @@ def exp_gamma():
 
 
 def exp_kl():
+    reward_fn = reward_merging_penalize_moved_tiles
     exp_dir = "logs/grid_3_3_6/exp_kl/"
     sweep = [None, 0.01, 0.02, 0.03, 0.04, 0.05]
     agent_files = {}
@@ -256,28 +256,24 @@ def exp_kl():
     os.makedirs(exp_dir, exist_ok=True)
 
     for kl in sweep:
-        if kl:
-            num_updates = 1000
-        else:
-            num_updates = 100
+        log_file = exp_dir + f"train_log_{kl}.csv"
 
-        env = Env2048(3, 3, 6, debug=True)
+        env = Env2048(3, 3, 6, debug=True, onehot_enc=True, reward_fn=reward_fn)
         agent = AgentPPO(
             env=env,
+            seed=1000,
             policy=PolicyMLP,
             policy_hidden_dim=64,
-            seed=1000,
-            gamma=0.99,
-            clip=0.4,
-            num_updates=num_updates,
             lr=1e-4,
-            target_kl=kl,
+            gamma=0.85,
+            clip=0.2,
             max_batch_moves=4096,
+            num_updates=150,
+            target_kl=kl,
             max_eps_moves=512,
         )
-        agent.learn(num_eps=10000)
 
-        log_file = exp_dir + f"train_log_{kl}.csv"
+        agent.learn(num_eps=10000)
         agent.log_statistics(log_file)
 
         agent_files[f"KL Thresh: {kl}"] = log_file
@@ -382,6 +378,6 @@ if __name__ == "__main__":
     # ------------------
     # Low Impact
     # ------------------
-    exp_gamma()
-    # exp_kl()
+    # exp_gamma()
+    exp_kl()
     # exp_grad_norm()
