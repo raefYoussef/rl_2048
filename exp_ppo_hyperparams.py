@@ -69,120 +69,6 @@ def exp_lr():
     )
 
 
-def exp_updates():
-    exp_dir = "logs/grid_3_3_6/exp_num_updates/"
-    num_updates = [5, 10, 50, 100, 500]
-    agent_files = {}
-
-    os.makedirs(exp_dir, exist_ok=True)
-
-    for num_upd in num_updates:
-        env = Env2048(3, 3, 6, debug=True)
-        agent = AgentPPO(
-            env=env,
-            policy=PolicyMLP,
-            policy_hidden_dim=64,
-            seed=1000,
-            gamma=0.99,
-            clip=0.2,
-            num_updates=num_upd,
-            lr=1e-4,
-            max_batch_moves=4096,
-            max_eps_moves=512,
-        )
-        agent.learn(num_eps=10000)
-
-        log_file = f"logs/grid_3_3_6/exp_num_updates/train_log_{num_upd}.csv"
-        agent.log_statistics(log_file)
-
-        agent_files[f"Num Updates: {num_upd}"] = log_file
-
-    plotter = StatsPlotter(agent_files)
-    plotter.plot_metric(
-        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_max_tile",
-        filt_width=500,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-    plotter.plot_metric(
-        metric="eps_rewards",
-        filt_width=500,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-
-
-def exp_gamma():
-    exp_dir = "logs/grid_3_3_6/exp_gamma/"
-    sweep = [1, 0.99, 0.95, 0.9, 0.8, 0.5]
-    agent_files = {}
-
-    os.makedirs(exp_dir, exist_ok=True)
-
-    for gamma in sweep:
-        env = Env2048(3, 3, 6, debug=True)
-        agent = AgentPPO(
-            env=env,
-            policy=PolicyMLP,
-            policy_hidden_dim=64,
-            seed=1000,
-            gamma=gamma,
-            clip=0.2,
-            num_updates=100,
-            lr=1e-4,
-            max_batch_moves=4096,
-            max_eps_moves=512,
-        )
-        agent.learn(num_eps=10000)
-
-        log_file = exp_dir + f"train_log_{gamma}.csv"
-        agent.log_statistics(log_file)
-
-        agent_files[f"Gamma: {gamma}"] = log_file
-
-    plotter = StatsPlotter(agent_files)
-    plotter.plot_metric(
-        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
-    )
-    plotter.plot_metric(
-        metric="eps_max_tile",
-        filt_width=500,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-    plotter.plot_metric(
-        metric="eps_rewards",
-        filt_width=500,
-        compare=True,
-        mode="save",
-        save_path=exp_dir,
-    )
-
-
 def exp_clipping():
     exp_dir = "logs/grid_3_3_6/exp_clipping/"
     sweep = [0.05, 0.1, 0.2, 0.3, 0.4]
@@ -242,18 +128,14 @@ def exp_clipping():
     )
 
 
-def exp_batch():
-    exp_dir = "logs/grid_3_3_6/exp_batch/"
-    batch_sweep = [512, 1024, 2048, 4096, 8192]
-    update_sweep = [25, 50, 100, 200, 400]
+def exp_updates():
+    exp_dir = "logs/grid_3_3_6/exp_num_updates/"
+    num_updates = [5, 10, 50, 100, 500]
     agent_files = {}
 
     os.makedirs(exp_dir, exist_ok=True)
 
-    for idx in range(len(batch_sweep)):
-        batch = batch_sweep[idx]
-        update = update_sweep[idx]
-
+    for num_upd in num_updates:
         env = Env2048(3, 3, 6, debug=True)
         agent = AgentPPO(
             env=env,
@@ -262,17 +144,135 @@ def exp_batch():
             seed=1000,
             gamma=0.99,
             clip=0.2,
-            num_updates=update,
+            num_updates=num_upd,
             lr=1e-4,
-            max_batch_moves=batch,
+            max_batch_moves=4096,
             max_eps_moves=512,
         )
         agent.learn(num_eps=10000)
 
-        log_file = exp_dir + f"train_log_{batch}.csv"
+        log_file = f"logs/grid_3_3_6/exp_num_updates/train_log_{num_upd}.csv"
         agent.log_statistics(log_file)
 
-        agent_files[f"Batch: {batch}"] = log_file
+        agent_files[f"Num Updates: {num_upd}"] = log_file
+
+    plotter = StatsPlotter(agent_files)
+    plotter.plot_metric(
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_max_tile",
+        filt_width=500,
+        compare=True,
+        mode="save",
+        save_path=exp_dir,
+    )
+    plotter.plot_metric(
+        metric="eps_rewards",
+        filt_width=500,
+        compare=True,
+        mode="save",
+        save_path=exp_dir,
+    )
+
+
+def exp_batch_updates():
+    exp_dir = "logs/grid_3_3_6/exp_batch_updates/"
+    batch_sweep = [2048, 4096, 8192]
+    update_sweep = [50, 100, 200]
+    agent_files = {}
+    reward_fn = reward_merging_penalize_moved_tiles
+
+    os.makedirs(exp_dir, exist_ok=True)
+
+    for update in update_sweep:
+        for batch in batch_sweep:
+            log_file = exp_dir + f"train_log_batch_{batch}_update_{update}.csv"
+
+            env = Env2048(3, 3, 6, debug=True, onehot_enc=True, reward_fn=reward_fn)
+            agent = AgentPPO(
+                env=env,
+                policy=PolicyMLP,
+                policy_hidden_dim=64,
+                seed=1000,
+                gamma=0.99,
+                clip=0.2,
+                num_updates=update,
+                lr=1e-4,
+                max_batch_moves=batch,
+                max_eps_moves=512,
+            )
+
+            agent.learn(num_eps=10000)
+            agent.log_statistics(log_file)
+
+            agent_files[f"Batch: {batch}, Update: {update}"] = log_file
+
+    plotter = StatsPlotter(agent_files)
+    plotter.plot_metric(
+        metric="eps_win", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_end", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_len", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_score", filt_width=500, compare=True, mode="save", save_path=exp_dir
+    )
+    plotter.plot_metric(
+        metric="eps_max_tile",
+        filt_width=500,
+        compare=True,
+        mode="save",
+        save_path=exp_dir,
+    )
+    plotter.plot_metric(
+        metric="eps_rewards",
+        filt_width=500,
+        compare=True,
+        mode="save",
+        save_path=exp_dir,
+    )
+
+
+def exp_gamma():
+    exp_dir = "logs/grid_3_3_6/exp_gamma/"
+    sweep = [1, 0.99, 0.95, 0.9, 0.8, 0.5]
+    agent_files = {}
+
+    os.makedirs(exp_dir, exist_ok=True)
+
+    for gamma in sweep:
+        env = Env2048(3, 3, 6, debug=True)
+        agent = AgentPPO(
+            env=env,
+            policy=PolicyMLP,
+            policy_hidden_dim=64,
+            seed=1000,
+            gamma=gamma,
+            clip=0.2,
+            num_updates=100,
+            lr=1e-4,
+            max_batch_moves=4096,
+            max_eps_moves=512,
+        )
+        agent.learn(num_eps=10000)
+
+        log_file = exp_dir + f"train_log_{gamma}.csv"
+        agent.log_statistics(log_file)
+
+        agent_files[f"Gamma: {gamma}"] = log_file
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
@@ -429,10 +429,11 @@ if __name__ == "__main__":
     # High Impact
     # ------------------
     # exp_lr()
-    exp_clipping()
+    # exp_clipping()
     # ------------------
     # Medium Impact
     # ------------------
+    exp_batch_updates()
     # exp_updates()
     # exp_batch()
     # ------------------
