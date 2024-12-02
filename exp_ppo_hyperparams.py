@@ -308,6 +308,7 @@ def exp_kl():
 
 
 def exp_grad_norm():
+    reward_fn = reward_merging_penalize_moved_tiles
     exp_dir = "logs/grid_3_3_6/exp_grad_norm/"
     sweep = [None, 0.1, 0.3, 0.5, 0.7, 0.9]
     agent_files = {}
@@ -315,18 +316,18 @@ def exp_grad_norm():
     os.makedirs(exp_dir, exist_ok=True)
 
     for max_grad in sweep:
-        env = Env2048(3, 3, 6, debug=True)
+        env = Env2048(3, 3, 6, debug=True, onehot_enc=True, reward_fn=reward_fn)
         agent = AgentPPO(
             env=env,
+            seed=1000,
             policy=PolicyMLP,
             policy_hidden_dim=64,
-            seed=1000,
-            gamma=0.99,
-            clip=0.4,
-            num_updates=100,
             lr=1e-4,
-            max_grad_norm=max_grad,
+            gamma=0.85,
+            clip=0.2,
             max_batch_moves=4096,
+            num_updates=150,
+            max_grad_norm=max_grad,
             max_eps_moves=512,
         )
         agent.learn(num_eps=10000)
@@ -379,5 +380,5 @@ if __name__ == "__main__":
     # Low Impact
     # ------------------
     # exp_gamma()
-    exp_kl()
-    # exp_grad_norm()
+    # exp_kl()
+    exp_grad_norm()
