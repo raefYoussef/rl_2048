@@ -64,6 +64,7 @@ class BasicDQN:
             self.device = torch_device
         else:
             # TODO here is where I could swap for torch_directml
+            print("Setting device to 'default' as none was provided")
             self.device = torch.device(
                 "cuda"
                 if torch.cuda.is_available()
@@ -150,7 +151,7 @@ class BasicDQN:
 
         # TODO decide if we want a different loss function
         # Compute Huber loss
-        criterion = nn.SmoothL1Loss()
+        criterion = nn.SmoothL1Loss()# .to(self.device)
         loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
         # Optimize the model

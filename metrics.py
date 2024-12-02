@@ -52,7 +52,7 @@ class Metrics:
         self.steps = df["steps"].to_list()
         self.high_tile = df["high_tile"].to_list()
 
-def plot_episodes(data, title="Result", y_label="", average_over=100):
+def plot_episodes(data, title="Result", y_label="", average_over=50):
     # can be run after each episode, or just once at the end
     np_data = np.array(data)
     plt.figure(1)
