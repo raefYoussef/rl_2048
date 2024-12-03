@@ -4,87 +4,77 @@ from itertools import combinations
 import torch
 
 from env2048.env2048 import Env2048
+from env2048.rewards import *
 from agent_ppo.agent_ppo import AgentPPO
 from agent_ppo.policy_mlp import PolicyMLP
 from agent_ppo.policy_cnn import PolicyCNN
 from stat_plotter.stat_plotter import StatsPlotter
 
 
-def reward_merging(old_grid, new_grid, score, tot_merged, end, win) -> float:
-    """
-    Encourage merging.
-    """
-
-    reward = tot_merged
-    return reward
-
-
-def reward_new_tiles(old_grid, new_grid, score, tot_merged, end, win) -> float:
-    """
-    Encourage making new tiles.
-    """
-
-    reward = 0
-    new_unique = np.unique(new_grid)
-    old_unique = np.unique(old_grid)
-    new_merged = np.setdiff1d(new_unique, old_unique)
-    max_merged = np.max(new_merged) if new_merged.size > 0 else 0
-
-    # reward tiles above 4 since 2 and 4 are automatically added
-    if max_merged > 2:
-        reward = max_merged
-    return reward
-
-
-def exp_network():
+def exp_best():
     exp_dir = "logs/grid_3_3_6/exp_best/"
-    # device = torch.device("cuda")
+    models_dir = "models/ppo/"
     device = torch.device("cpu")
+    reward_fn = reward_merging_penalize_moved_tiles
     policy_dim = 64
+    num_agents = 5
+
     networks = {
-        # "MLP": PolicyMLP,
-        "CNN": PolicyCNN
+        "MLP": PolicyMLP,
     }
-    rewards = {
-        # "tot_merged": reward_merging,
-        "new_tiles": reward_new_tiles,
+    grids = {
+        # "3x3x6": [3, 3, 6],
+        "4x4x11": [4, 4, 11],
     }
     agent_files = {}
 
     os.makedirs(exp_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
 
-    for policy_name, policy_network in networks.items():
-        for reward_name, reward_fn in rewards.items():
-            # # Lambda to sum the results of the reward functions
-            # reward_fn = lambda *args: sum(func(*args) for func in reward_list)
+    for grid_name, grid_arr in grids.items():
+        for policy_name, policy_network in networks.items():
+            for agentIdx in range(num_agents):
+                actor_file = (
+                    models_dir
+                    + f"ppo_actor_{grid_name}_{policy_name}_{policy_dim}_{agentIdx}.pth"
+                )
+                critic_file = (
+                    models_dir
+                    + f"ppo_critic_{grid_name}_{policy_name}_{policy_dim}_{agentIdx}.pth"
+                )
+                log_file = (
+                    exp_dir
+                    + f"train_log_{grid_name}_{policy_name}_{policy_dim}_{agentIdx}.csv"
+                )
 
-            env = Env2048(3, 3, 6, debug=True, reward_fn=reward_fn)
-            agent = AgentPPO(
-                env=env,
-                policy=policy_network,
-                policy_hidden_dim=64,
-                seed=1000,
-                gamma=0.99,
-                clip=0.2,
-                num_updates=300,
-                lr=1e-5,
-                target_kl=0.02,
-                max_batch_moves=4096,
-                max_eps_moves=512,
-                actor_path=f"./models/ppo_actor_{policy_name}_{policy_dim}_{reward_name}.pth",
-                critic_path=f"./models/ppo_critic_{policy_name}_{policy_dim}_{reward_name}.pth",
-                device=device,
-            )
-            agent.learn(num_eps=100000)
+                env = Env2048(
+                    grid_arr[0],
+                    grid_arr[1],
+                    grid_arr[2],
+                    debug=False,
+                    onehot_enc=True,
+                    reward_fn=reward_fn,
+                )
+                agent = AgentPPO(
+                    env=env,
+                    seed=1000,
+                    policy=policy_network,
+                    policy_hidden_dim=64,
+                    lr=1e-4,
+                    gamma=0.85,
+                    clip=0.2,
+                    max_batch_moves=4096,
+                    num_updates=150,
+                    max_eps_moves=512,
+                    # target_kl=0.05,
+                    device=device,
+                    actor_path=actor_file,
+                    critic_path=critic_file,
+                )
+                agent.learn(num_eps=50000)
+                agent.log_statistics(log_file)
 
-            log_file = (
-                exp_dir + f"train_log_{policy_name}_{policy_dim}_{reward_name}.csv"
-            )
-            agent.log_statistics(log_file)
-
-            agent_files[
-                f"{policy_name} Policy, Dim: {policy_dim}, Reward: {reward_name}"
-            ] = log_file
+                agent_files[f"Grid: {grid_name}, Agent: {agentIdx}"] = log_file
 
     plotter = StatsPlotter(agent_files)
     plotter.plot_metric(
@@ -116,4 +106,4 @@ def exp_network():
 
 
 if __name__ == "__main__":
-    exp_network()
+    exp_best()
