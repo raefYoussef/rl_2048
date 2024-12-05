@@ -16,7 +16,7 @@ class Metrics:
 
     def add_episode(self, win=0, reward=0, score=0, steps=0, high_tile=0):
         self.wins.append(win)   # expected only 0 or 1
-        self.rewards.append(reward)
+        self.rewards.append(float(reward))
         self.scores.append(score)
         self.steps.append(steps)
         self.high_tile.append(high_tile)
@@ -52,7 +52,31 @@ class Metrics:
         self.steps = df["steps"].to_list()
         self.high_tile = df["high_tile"].to_list()
 
-def plot_episodes(data, title="Result", y_label="", average_over=50):
+    @classmethod
+    def average(cls, metric_list:list):
+        # expects all metrics to be the same length
+        avg_metrics = Metrics()
+        for i in range(len(metric_list[0].wins)):
+            sum_wins = 0
+            sum_rewards = 0
+            sum_scores = 0
+            sum_steps = 0
+            sum_high = 0
+            for metric in metric_list:
+                sum_wins += metric.wins[i]
+                sum_rewards += metric.rewards[i]
+                sum_scores += metric.scores[i]
+                sum_steps += metric.steps[i]
+                sum_high += metric.high_tile[i]
+            sum_wins = float(sum_wins / len(metric_list))
+            sum_rewards = float(sum_rewards / len(metric_list))
+            sum_scores = float(sum_scores / len(metric_list))
+            sum_steps = float(sum_steps / len(metric_list))
+            sum_high = float(sum_high / len(metric_list))
+            avg_metrics.add_episode(sum_wins, sum_rewards, sum_scores, sum_steps, sum_high)
+        return avg_metrics
+
+def plot_episodes(data, title="Result", y_label="", mark=[], average_over=50):
     # can be run after each episode, or just once at the end
     np_data = np.array(data)
     plt.figure(1)

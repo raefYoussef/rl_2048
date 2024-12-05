@@ -187,6 +187,9 @@ class BasicDQN:
             high_tile = torch.max(state)
         else:
             high_tile = torch.max(next_state)
+        
+        if self.observations_in_state > 16:
+            high_tile = np.max(np.nonzero(stat_obs))
         return state, action, next_state, reward, score, high_tile, end, win
 
     def select_action(self, state):
